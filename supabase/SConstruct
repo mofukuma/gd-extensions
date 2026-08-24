@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+# Supabase GDExtensionをGodot 4.7向けにbuildする。
+
+import os
+
+godot_cpp = os.path.abspath(ARGUMENTS.get("godot_cpp", "../../tmp/ref_godot_cpp"))
+out = ARGUMENTS.get("out", "bin")
+env = SConscript(os.path.join(godot_cpp, "SConstruct"), {"api_version": "4.7"})
+env.Append(CPPPATH=["src"])
+sources = Glob("src/*.cpp")
+# 各OSのloaderが解決できる共有library拡張子を付ける。
+target = os.path.join(out, "libgdsupabase{}{}".format(env["suffix"], env["SHLIBSUFFIX"]))
+library = env.SharedLibrary(target, source=sources)
+env.NoCache(library)
+Default(library)

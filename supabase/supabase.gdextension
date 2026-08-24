@@ -1,0 +1,28 @@
+[configuration]
+entry_symbol = "supabase_library_init"
+compatibility_minimum = "4.7"
+reloadable = true
+
+[libraries]
+macos.debug.arm64 = "res://bin/libgdsupabase.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "res://bin/libgdsupabase.macos.template_release.arm64.dylib"
+linux.debug.x86_64 = "res://bin/libgdsupabase.linuxbsd.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libgdsupabase.linuxbsd.template_release.x86_64.so"
+windows.debug.x86_64 = "res://bin/libgdsupabase.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libgdsupabase.windows.template_release.x86_64.dll"
+
+[classes]
+SupabaseCallInternal = ""
+SupabaseClient = ""
+Supabase = ""
+
+[await]
+SupabaseClient.select = "Dictionary"
+SupabaseClient.insert = "Dictionary"
+SupabaseClient.update = "Dictionary"
+SupabaseClient.remove = "Dictionary"
+SupabaseClient.rpc = "Dictionary"
+SupabaseClient.sign_in = "Dictionary"
+SupabaseClient.auth_settings = "Dictionary"
+SupabaseClient.refresh = "Dictionary"
+SupabaseClient.sign_out = "Dictionary"

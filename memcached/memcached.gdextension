@@ -1,0 +1,37 @@
+; Memcachedの公開class、platform library、await型を定義するmanifest。
+
+[configuration]
+; 初期化入口と読込み可能なGodot版。
+entry_symbol = "memcached_library_init"
+compatibility_minimum = "4.7"
+reloadable = true
+
+[libraries]
+; packageが機種ごとに選ぶnative library。
+macos.debug.arm64 = "res://bin/libgdmemcached.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "res://bin/libgdmemcached.macos.template_release.arm64.dylib"
+linux.debug.x86_64 = "res://bin/libgdmemcached.linuxbsd.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libgdmemcached.linuxbsd.template_release.x86_64.so"
+windows.debug.x86_64 = "res://bin/libgdmemcached.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libgdmemcached.windows.template_release.x86_64.dll"
+
+[classes]
+; gdの型推論とcompileが追跡するclass。
+MemcachedCallInternal = ""
+MemcachedWireInternal = ""
+MemcachedClient = ""
+Memcached = ""
+
+[await]
+; 非同期methodをawaitした後の型。
+MemcachedClient.get = "Dictionary"
+MemcachedClient.get_many = "Dictionary"
+MemcachedClient.set = "Dictionary"
+MemcachedClient.set_raw = "Dictionary"
+MemcachedClient.add = "Dictionary"
+MemcachedClient.replace = "Dictionary"
+MemcachedClient.remove = "Dictionary"
+MemcachedClient.touch = "Dictionary"
+MemcachedClient.increment = "Dictionary"
+MemcachedClient.decrement = "Dictionary"
+MemcachedClient.version = "Dictionary"

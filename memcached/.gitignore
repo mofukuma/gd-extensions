@@ -1,0 +1,5 @@
+# Memcached GDExtensionのローカルbuild生成物。
+bin/
+godot-cpp/
+.sconsign.dblite
+src/*.os

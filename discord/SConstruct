@@ -4,11 +4,11 @@
 import os
 
 godot_cpp = os.path.abspath(ARGUMENTS.get("godot_cpp", "../../tmp/ref_godot_cpp"))  # binding sourceの場所
-out = ARGUMENTS.get("out", "bin")  # build生成物の出力先
+out = ARGUMENTS.get("out", "../../tmp/discord_ext_bin")  # build生成物の出力先
 SConsignFile(os.path.join(out, ".sconsign.dblite"))  # build状態も出力先へ置く
 env = SConscript(os.path.join(godot_cpp, "SConstruct"), {"api_version": "4.7"})  # Godot 4.7用環境
-env.Append(CPPPATH=["src"])
-sources = Glob("src/*.cpp")
+env.Append(CPPPATH=["src", "../../thirdparty/sqlite"])  # 宣言と公式SQLiteの場所
+sources = Glob("src/*.cpp") + [File("../../thirdparty/sqlite/sqlite.c")]  # SQLiteも共有libraryへ収録する
 # objectも出力先へ集め、source treeへ中間fileを残さない。
 objects = []
 for source in sources:

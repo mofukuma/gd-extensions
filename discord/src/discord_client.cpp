@@ -8,6 +8,8 @@
 
 #include "discord_client.h"
 
+#include "identify_store.h"
+
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -15,18 +17,18 @@
 #include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
+#include <cmath>
+
 namespace godot {
 
 namespace {
 
 constexpr int GATEWAY_EVENT_MAX = 64; // 1frameで処理するGateway event上限
-constexpr int GATEWAY_PACKET_MAX = 2 * 1024 * 1024; // Gateway packet上限bytes
-constexpr int GATEWAY_FRAME_MAX = 4 * 1024 * 1024; // 1frameで読むGateway上限bytes
+constexpr int GATEWAY_PACKET_MAX = 8 * 1024 * 1024; // 設定で広げられるGateway上限bytes
 constexpr int GATEWAY_PAYLOAD_MAX = 4096; // Discordが許すGateway payload bytes
 constexpr int REST_BODY_MAX = 8 * 1024 * 1024; // REST送信JSONの上限bytes
 constexpr int REST_RETRY_MAX = 4; // 429再試行の上限
-constexpr int REST_GLOBAL_SAFE = 45; // 公称50件/秒へ持たせる安全幅
-constexpr int ROUTE_RESET_MAX = 4096; // route制限記録の上限
+constexpr uint64_t CLOSE_WAIT = 1000; // close handshakeの待機上限ms
 
 // 通信結果を共通Dictionaryへ揃える。
 Dictionary reply_of(bool p_ok, int p_status, const Variant &p_data, const String &p_error, const PackedStringArray &p_headers = PackedStringArray()) {
@@ -56,7 +58,78 @@ Variant message_body(const Variant &p_message) {
 	}
 	Dictionary body;
 	body["content"] = String(p_message);
+	Dictionary mentions;
+	mentions["parse"] = Array();
+	body["allowed_mentions"] = mentions;
 	return body;
+}
+
+// URLから認証情報を含まないhostとportを取る。
+bool url_host(const String &p_url, const String &p_scheme, String &r_host, String &r_port) {
+	if (!p_url.begins_with(p_scheme)) {
+		return false;
+	}
+	String authority = p_url.substr(p_scheme.length());
+	const int path = authority.find("/");
+	if (path >= 0) {
+		authority = authority.left(path);
+	}
+	const int query = authority.find("?");
+	if (query >= 0) {
+		authority = authority.left(query);
+	}
+	if (authority.is_empty() || authority.contains("@")) {
+		return false;
+	}
+	if (authority.begins_with("[")) {
+		const int close = authority.find("]");
+		if (close < 0) {
+			return false;
+		}
+		r_host = authority.left(close + 1).to_lower();
+		const String tail = authority.substr(close + 1);
+		if (!tail.is_empty() && !tail.begins_with(":")) {
+			return false;
+		}
+		r_port = tail.is_empty() ? String() : tail.substr(1);
+	} else {
+		const int colon = authority.rfind(":");
+		r_host = (colon < 0 ? authority : authority.left(colon)).to_lower();
+		r_port = colon < 0 ? String() : authority.substr(colon + 1);
+	}
+	if (r_host.is_empty()) {
+		return false;
+	}
+	if (!r_port.is_empty()) {
+		const int port = r_port.to_int();
+		if (!r_port.is_valid_int() || port < 1 || port > 65535) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// Discord bucketが分離する主要resourceをpathから取る。
+String major_of(const String &p_path) {
+	const PackedStringArray parts = p_path.get_slice("?", 0).split("/", false);
+	for (int i = 1; i < parts.size(); i++) {
+		const String parent = parts[i - 1];
+		if (parent == "channels" || parent == "guilds") {
+			return parent + String(":") + parts[i];
+		}
+		if (parent == "webhooks") {
+			return parent + String(":") + parts[i] + (i + 1 < parts.size() ? String(":") + parts[i + 1] : String());
+		}
+	}
+	return String();
+}
+
+// Discordが返す待機秒を最大24時間のmsへ安全に直す。
+uint64_t wait_of(double p_seconds) {
+	if (!std::isfinite(p_seconds) || p_seconds <= 0.0) {
+		return 0;
+	}
+	return uint64_t(MIN(p_seconds, 24.0 * 60 * 60) * 1000.0) + 50;
 }
 
 } // namespace
@@ -139,45 +212,22 @@ String DiscordWireInternal::gateway_endpoint(const String &p_url) {
 
 // 平文通信を許せるlocalhost URLか判断する。
 bool DiscordWireInternal::local_url(const String &p_url, const String &p_scheme) {
-	if (!p_url.begins_with(p_scheme)) {
-		return false;
-	}
-	String authority = p_url.substr(p_scheme.length());
-	const int end = authority.find("/");
-	if (end >= 0) {
-		authority = authority.left(end);
-	}
-	const int query = authority.find("?");
-	if (query >= 0) {
-		authority = authority.left(query);
-	}
-	if (authority.is_empty() || authority.contains("@")) {
-		return false;
+	String host;
+	String port;
+	return url_host(p_url, p_scheme, host, port) && (host == "localhost" || host == "127.0.0.1" || host == "[::1]");
+}
+
+// tokenを送れるGateway URLか判断する。
+bool DiscordWireInternal::safe_gateway_url(const String &p_url) {
+	if (local_url(p_url, "ws://") || local_url(p_url, "wss://")) {
+		return true;
 	}
 	String host;
 	String port;
-	if (authority.begins_with("[")) {
-		const int close = authority.find("]");
-		if (close < 0) {
-			return false;
-		}
-		host = authority.left(close + 1);
-		const String tail = authority.substr(close + 1);
-		if (!tail.is_empty()) {
-			if (!tail.begins_with(":") || !tail.substr(1).is_valid_int()) {
-				return false;
-			}
-			port = tail.substr(1);
-		}
-	} else {
-		const int colon = authority.rfind(":");
-		host = colon < 0 ? authority : authority.left(colon);
-		port = colon < 0 ? String() : authority.substr(colon + 1);
-		if (!port.is_empty() && !port.is_valid_int()) {
-			return false;
-		}
+	if (!url_host(p_url, "wss://", host, port) || (!port.is_empty() && port != "443")) {
+		return false;
 	}
-	return host == "localhost" || host == "127.0.0.1" || host == "[::1]";
+	return host == "gateway.discord.gg" || host.ends_with(".discord.gg");
 }
 
 // 自動再接続しないclose codeか判断する。
@@ -185,55 +235,41 @@ bool DiscordWireInternal::fatal_close(int p_code) {
 	return p_code == 4004 || p_code == 4010 || p_code == 4011 || p_code == 4012 || p_code == 4013 || p_code == 4014;
 }
 
-// route停止時刻を上限付きで記録する。
-void DiscordWireInternal::set_route_reset(const String &p_route, uint64_t p_until) {
-	if (!route_reset.has(p_route) && route_reset.size() >= ROUTE_RESET_MAX) {
-		route_reset.clear();
-	}
-	route_reset.insert(p_route, p_until);
-}
-
-// REST要求を開始できる時刻か調べる。
-bool DiscordWireInternal::rest_allowed(const Ref<DiscordCallInternal> &p_call, uint64_t p_now) {
-	if (p_now < rest_global_reset) {
-		return false;
-	}
-	if (p_now - rest_window_at >= 1000) {
-		rest_window_at = p_now;
-		rest_window_count = 0;
-	}
-	if (rest_window_count >= REST_GLOBAL_SAFE) {
-		return false;
-	}
-	const HashMap<String, uint64_t>::ConstIterator reset = route_reset.find(p_call->route);
-	if (reset && p_now < reset->value) {
-		return false;
-	}
-	if (reset) {
-		route_reset.erase(p_call->route);
-	}
-	return true;
-}
-
 // REST queueの次要求を始める。
 void DiscordWireInternal::start_rest(uint64_t p_now) {
-	if (http || rest_queue.empty()) {
+	if (http || rest_queue.empty() || p_now < rest_check_at) {
 		return;
 	}
-	const size_t count = rest_queue.size();
-	for (size_t i = 0; i < count; i++) {
-		Ref<DiscordCallInternal> call = rest_queue.front();
-		rest_queue.pop_front();
-		if (!rest_allowed(call, p_now)) {
-			rest_queue.push_back(call);
-			continue;
+	Ref<DiscordCallInternal> call = rest_queue.front();
+	if (rest_job == 0) {
+		rest_job = RestStore::take_async(token_key, call->route, major_of(call->path), invalid_limit);
+		if (rest_job > 0) {
+			return;
 		}
-		rest_active = call;
-		break;
 	}
-	if (rest_active.is_null()) {
+	RestStore::Gate gate;
+	if (rest_job > 0 && !RestStore::poll(rest_job, gate)) {
 		return;
 	}
+	rest_job = 0;
+	if (gate.result == RestStore::WAIT) {
+		rest_check_at = p_now + MAX(uint64_t(1), gate.wait_ms);
+		return;
+	}
+	if (gate.result == RestStore::GRANTED && !RestStore::fresh(gate)) {
+		RestStore::release_async(gate.permit);
+		return;
+	}
+	rest_queue.pop_front();
+	if (gate.result == RestStore::FAILED) {
+		rest_queue_bytes -= MIN(rest_queue_bytes, size_t(call->body.to_utf8_buffer().size()));
+		call->finish(reply_of(false, 0, Variant(), "REST rate database failed"));
+		return;
+	}
+	rest_check_at = 0;
+	call->bucket = gate.bucket;
+	call->permit = gate.permit;
+	rest_active = call;
 
 	http = memnew(HTTPRequest);
 	http->set_timeout(30.0);
@@ -248,11 +284,11 @@ void DiscordWireInternal::start_rest(uint64_t p_now) {
 	if (!rest_active->body.is_empty()) {
 		headers.push_back("Content-Type: application/json");
 	}
-	rest_window_count++;
 	const Error err = http->request(api_url + rest_active->path, headers, rest_active->method, rest_active->body);
 	if (err != OK) {
 		Ref<DiscordCallInternal> call = rest_active;
 		rest_active.unref();
+		RestStore::release_async(call->permit);
 		rest_queue_bytes -= MIN(rest_queue_bytes, size_t(call->body.to_utf8_buffer().size()));
 		clear_http();
 		call->finish(reply_of(false, 0, Variant(), vformat("request could not start: %d", err)));
@@ -265,45 +301,52 @@ void DiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const Pa
 		clear_http();
 		return;
 	}
-	const uint64_t now = now_msec();
 	const Dictionary headers = header_map(p_headers);
 	const String text = p_body.is_empty() ? String() : String::utf8(reinterpret_cast<const char *>(p_body.ptr()), p_body.size());
 	const Variant data = json_value(text);
 	const double reset_after = String(headers.get("x-ratelimit-reset-after", "0")).to_float();
 	const int remaining = String(headers.get("x-ratelimit-remaining", "1")).to_int();
-	if (remaining <= 0 && reset_after > 0.0) {
-		set_route_reset(rest_active->route, now + uint64_t(reset_after * 1000.0) + 50);
-	}
+	const String bucket = headers.get("x-ratelimit-bucket", "");
+	const String scope = String(headers.get("x-ratelimit-scope", "")).to_lower();
+	uint64_t wait_ms = remaining <= 0 ? wait_of(reset_after) : 0;
+	bool global = false;
 
-	// 429はDiscordが返した秒数だけ待ち、同じCallを先頭へ戻す。
-	if (p_result == HTTPRequest::RESULT_SUCCESS && p_status == 429 && rest_active->retries < REST_RETRY_MAX) {
+	// 429は常に待機時刻を記録し、上限内なら同じCallを先頭へ戻す。
+	if (p_result == HTTPRequest::RESULT_SUCCESS && p_status == 429) {
 		const Dictionary limited = data.get_type() == Variant::DICTIONARY ? Dictionary(data) : Dictionary();
 		const double header_retry = String(headers.get("retry-after", "0")).to_float();
 		const double fallback = header_retry > 0.0 ? header_retry : (reset_after > 0.0 ? reset_after : 1.0);
-		const double retry = CLAMP(double(limited.get("retry_after", fallback)), 0.05, 3600.0);
-		const uint64_t until = now + uint64_t(retry * 1000.0) + 50;
-		const bool global = bool(limited.get("global", false)) || String(headers.get("x-ratelimit-global", "false")).to_lower() == "true";
-		if (global) {
-			rest_global_reset = until;
-		} else {
-			set_route_reset(rest_active->route, until);
+		const double retry = MAX(0.05, double(limited.get("retry_after", fallback)));
+		wait_ms = MAX(wait_ms, wait_of(retry));
+		global = bool(limited.get("global", false)) || String(headers.get("x-ratelimit-global", "false")).to_lower() == "true";
+	}
+	const bool network_ok = p_result == HTTPRequest::RESULT_SUCCESS;
+	const bool invalid = network_ok && (p_status == 401 || p_status == 403 || (p_status == 429 && scope != "shared"));
+	RestStore::sync_async(token_key, rest_active->route, major_of(rest_active->path), bucket, wait_ms, global,
+			rest_active->permit, invalid);
+	if (p_result == HTTPRequest::RESULT_SUCCESS && p_status == 429) {
+		if (rest_active->retries < REST_RETRY_MAX) {
+			rest_active->retries++;
+			rest_queue.push_front(rest_active);
+			rest_active.unref();
+			clear_http();
+			return;
 		}
-		rest_active->retries++;
-		rest_queue.push_front(rest_active);
-		rest_active.unref();
-		clear_http();
-		return;
 	}
 
-	const bool network_ok = p_result == HTTPRequest::RESULT_SUCCESS;
 	const bool ok = network_ok && p_status >= 200 && p_status < 300;
 	const String error = ok ? String() : error_text(data, network_ok ? vformat("HTTP %d", p_status) : vformat("network error %d", p_result));
 	Ref<DiscordCallInternal> call = rest_active;
 	rest_active.unref();
 	rest_queue_bytes -= MIN(rest_queue_bytes, size_t(call->body.to_utf8_buffer().size()));
 	clear_http();
+	if (p_status == 401) {
+		authorized = false;
+		started = false;
+	}
 	call->finish(reply_of(ok, p_status, data, error, p_headers));
 	if (p_status == 401) {
+		drop_socket(4004, "authorization failed");
 		while (!rest_queue.empty()) {
 			Ref<DiscordCallInternal> denied = rest_queue.front();
 			rest_queue.pop_front();
@@ -337,7 +380,7 @@ Error DiscordWireInternal::send_payload(int p_op, const Variant &p_data) {
 }
 
 // IdentifyかResumeをHello後に送る。
-void DiscordWireInternal::identify() {
+void DiscordWireInternal::identify(uint64_t p_now) {
 	if (resume_next && !session_id.is_empty()) {
 		Dictionary data;
 		data["token"] = token;
@@ -346,7 +389,34 @@ void DiscordWireInternal::identify() {
 		if (send_payload(6, data) != OK) {
 			drop_socket(4000, "resume failed");
 			schedule_reconnect(true);
+		} else {
+			identify_pending = false;
 		}
+		return;
+	}
+	if (p_now < identify_at) {
+		return;
+	}
+	const IdentifyStore::Gate gate = IdentifyStore::take(token_key);
+	if (gate.result == IdentifyStore::REFRESH) {
+		drop_socket(4000, "identify budget refresh");
+		load_gateway();
+		return;
+	}
+	if (gate.result == IdentifyStore::FAILED) {
+		owner->accept_failed("gateway identify database failed");
+		started = false;
+		drop_socket(4000, "identify database");
+		return;
+	}
+	if (gate.result == IdentifyStore::WAIT) {
+		identify_at = p_now + MAX(uint64_t(1), gate.wait_ms);
+		if (gate.wait_ms <= 5000) {
+			return;
+		}
+		owner->accept_failed("gateway identify limit is exhausted");
+		drop_socket(4000, "identify limit");
+		reconnect_at = p_now + gate.wait_ms;
 		return;
 	}
 	Dictionary properties;
@@ -357,7 +427,10 @@ void DiscordWireInternal::identify() {
 	data["token"] = token;
 	data["intents"] = intents;
 	data["properties"] = properties;
-	if (send_payload(2, data) != OK) {
+	if (send_payload(2, data) == OK) {
+		identify_pending = false;
+		identify_at = 0;
+	} else {
 		drop_socket(4000, "identify failed");
 		schedule_reconnect(false);
 	}
@@ -386,7 +459,11 @@ void DiscordWireInternal::receive_payload(const Dictionary &p_payload, uint64_t 
 			if (type == "READY" && data.get_type() == Variant::DICTIONARY) {
 				const Dictionary ready_data = data;
 				session_id = ready_data.get("session_id", "");
-				resume_url = ready_data.get("resume_gateway_url", "");
+				const String candidate = ready_data.get("resume_gateway_url", "");
+				resume_url = safe_gateway_url(candidate) ? candidate : String();
+				if (resume_url.is_empty()) {
+					owner->accept_failed("gateway resume URL was rejected");
+				}
 				ready = true;
 				resume_next = true;
 				reconnect_count = 0;
@@ -433,7 +510,8 @@ void DiscordWireInternal::receive_payload(const Dictionary &p_payload, uint64_t 
 			hello = true;
 			heartbeat_ack = true;
 			heartbeat_at = p_now + 1 + ((p_now * 1103515245ULL + 12345ULL) % uint64_t(heartbeat_ms));
-			identify();
+			identify_pending = true;
+			identify(p_now);
 		} break;
 		case 11:
 			heartbeat_ack = true;
@@ -447,12 +525,26 @@ void DiscordWireInternal::receive_payload(const Dictionary &p_payload, uint64_t 
 // 到着済みGateway packetを上限内で読む。
 void DiscordWireInternal::receive_gateway(uint64_t p_now) {
 	int frame_bytes = 0;
-	for (int i = 0; i < GATEWAY_EVENT_MAX && started && socket.is_valid() && socket->get_available_packet_count() > 0 && frame_bytes < GATEWAY_FRAME_MAX; i++) {
-		const PackedByteArray packet = socket->get_packet();
-		if (!socket->was_string_packet() || packet.size() > GATEWAY_PACKET_MAX) {
+	for (int i = 0; i < GATEWAY_EVENT_MAX && started && socket.is_valid() && (!gateway_pending.is_empty() || socket->get_available_packet_count() > 0); i++) {
+		PackedByteArray packet;
+		bool text_packet = false;
+		if (!gateway_pending.is_empty()) {
+			packet = gateway_pending;
+			text_packet = gateway_pending_text;
+			gateway_pending.clear();
+		} else {
+			packet = socket->get_packet();
+			text_packet = socket->was_string_packet();
+		}
+		if (!text_packet || packet.size() > max_gateway_packet) {
 			owner->accept_failed("gateway sent an unsupported packet");
+			started = false;
 			drop_socket(4002, "unsupported packet");
-			schedule_reconnect(true);
+			return;
+		}
+		if (frame_bytes > 0 && frame_bytes + packet.size() > max_gateway_packet) {
+			gateway_pending = packet;
+			gateway_pending_text = text_packet;
 			return;
 		}
 		frame_bytes += packet.size();
@@ -476,7 +568,7 @@ void DiscordWireInternal::schedule_reconnect(bool p_resume, int p_delay_ms) {
 	resume_next = p_resume && !session_id.is_empty();
 	int delay = p_delay_ms;
 	if (delay < 0) {
-		delay = MIN(60000, 1000 << MIN(reconnect_count, 5));
+		delay = MIN(120000, 1000 << MIN(reconnect_count, 7));
 		delay += int(now_msec() % 500);
 	}
 	reconnect_count++;
@@ -490,8 +582,10 @@ void DiscordWireInternal::drop_socket(int p_code, const String &p_reason) {
 		socket->poll();
 	}
 	socket.unref();
+	gateway_pending.clear();
 	hello = false;
 	ready = false;
+	identify_pending = false;
 	heartbeat_ms = 0;
 }
 
@@ -499,20 +593,23 @@ void DiscordWireInternal::drop_socket(int p_code, const String &p_reason) {
 void DiscordWireInternal::connect_gateway() {
 	const String endpoint = gateway_endpoint(resume_next && !resume_url.is_empty() ? resume_url : gateway_url);
 	socket.instantiate();
-	socket->set_inbound_buffer_size(GATEWAY_PACKET_MAX * 2);
+	socket->set_inbound_buffer_size(max_gateway_packet * 2);
 	socket->set_outbound_buffer_size(256 * 1024);
 	socket->set_max_queued_packets(128);
 	const Error err = socket->connect_to_url(endpoint);
 	if (err != OK) {
 		socket.unref();
 		owner->accept_failed(vformat("gateway connection could not start: %d", err));
+		if (resume_next) {
+			resume_url = String();
+		}
 		schedule_reconnect(resume_next);
 	}
 }
 
 // Gatewayの接続、heartbeat、受信、presenceを進める。
 void DiscordWireInternal::process_gateway(uint64_t p_now) {
-	if (!started) {
+	if (!started || gateway_loading || gateway_url.is_empty()) {
 		return;
 	}
 	if (socket.is_null()) {
@@ -527,6 +624,12 @@ void DiscordWireInternal::process_gateway(uint64_t p_now) {
 		receive_gateway(p_now);
 		if (socket.is_null()) {
 			return;
+		}
+		if (identify_pending) {
+			identify(p_now);
+			if (socket.is_null()) {
+				return;
+			}
 		}
 		if (hello && p_now >= heartbeat_at) {
 			if (!heartbeat_ack) {
@@ -547,6 +650,7 @@ void DiscordWireInternal::process_gateway(uint64_t p_now) {
 	const String reason = socket->get_close_reason();
 	socket.unref();
 	ready = false;
+	const bool before_hello = !hello;
 	hello = false;
 	owner->accept_disconnected(code, reason);
 	if (fatal_close(code)) {
@@ -555,6 +659,9 @@ void DiscordWireInternal::process_gateway(uint64_t p_now) {
 		return;
 	}
 	const bool can_resume = !session_id.is_empty() && code != 4007 && code != 4009;
+	if (can_resume && before_hello) {
+		resume_url = String();
+	}
 	if (!can_resume) {
 		session_id = String();
 		resume_url = String();
@@ -568,11 +675,10 @@ void DiscordWireInternal::drain_presence(uint64_t p_now) {
 	if (!ready || presence_pending.is_empty()) {
 		return;
 	}
-	if (p_now - presence_window_at >= 20000) {
-		presence_window_at = p_now;
-		presence_window_count = 0;
+	while (!presence_at.empty() && p_now - presence_at.front() >= 20000) {
+		presence_at.pop_front();
 	}
-	if (presence_window_count >= 5) {
+	if (presence_at.size() >= 5) {
 		return;
 	}
 	const Error err = socket->send_text(presence_pending);
@@ -581,12 +687,54 @@ void DiscordWireInternal::drain_presence(uint64_t p_now) {
 		return;
 	}
 	presence_pending = String();
-	presence_window_count++;
+	presence_at.push_back(p_now);
 }
 
-// HTTP callbackだけを登録する。
+// HTTP callbackとGateway開始callbackを登録する。
 void DiscordWireInternal::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_http_done", "result", "status", "headers", "body"), &DiscordWireInternal::http_done);
+	ClassDB::bind_method(D_METHOD("_gateway_info", "reply"), &DiscordWireInternal::gateway_info);
+}
+
+// Gateway Bot APIから接続先と公式残数を取得する。
+void DiscordWireInternal::load_gateway() {
+	if (!started || gateway_loading) {
+		return;
+	}
+	gateway_loading = true;
+	Signal probe = owner->request("GET", "/gateway/bot");
+	probe.connect(Callable(this, "_gateway_info"), CONNECT_ONE_SHOT);
+}
+
+// Gateway Bot APIのURLとIdentify枠を受け取る。
+void DiscordWireInternal::gateway_info(const Dictionary &p_reply) {
+	gateway_loading = false;
+	if (!started) {
+		return;
+	}
+	const Variant value = p_reply.get("data", Variant());
+	const Dictionary data = value.get_type() == Variant::DICTIONARY ? Dictionary(value) : Dictionary();
+	const Variant limit_value = data.get("session_start_limit", Variant());
+	const Dictionary limit = limit_value.get_type() == Variant::DICTIONARY ? Dictionary(limit_value) : Dictionary();
+	const String url = data.get("url", "");
+	const int total = limit.get("total", 0);
+	const int remaining = limit.get("remaining", -1);
+	const int64_t reset_ms = limit.get("reset_after", 0);
+	const int concurrency = limit.get("max_concurrency", 0);
+	if (!bool(p_reply.get("ok", false)) || !safe_gateway_url(url) || total < 2 || remaining < 0 || remaining > total ||
+			reset_ms < 1 || reset_ms > int64_t(7) * 24 * 60 * 60 * 1000 || concurrency < 1) {
+		started = false;
+		owner->accept_failed("gateway bot information is invalid");
+		return;
+	}
+	gateway_url = url;
+	const int safe_limit = MIN(identify_limit, total - 1);
+	if (!IdentifyStore::sync(token_key, remaining, uint64_t(reset_ms), safe_limit)) {
+		started = false;
+		owner->accept_failed("gateway identify database failed");
+		return;
+	}
+	reconnect_at = now_msec();
 }
 
 // token、endpoint、資源上限を設定する。
@@ -595,17 +743,22 @@ bool DiscordWireInternal::setup(DiscordClient *p_owner, const String &p_token, c
 	token = p_token;
 	intents = p_opts.get("intents", 0);
 	api_url = String(p_opts.get("api_url", api_url)).trim_suffix("/");
-	gateway_url = p_opts.get("gateway_url", gateway_url);
 	max_rest_queue = p_opts.get("max_rest_queue", max_rest_queue);
+	max_gateway_packet = p_opts.get("max_gateway_packet", max_gateway_packet);
+	identify_limit = p_opts.get("identify_limit", identify_limit);
+	invalid_limit = p_opts.get("invalid_limit", invalid_limit);
 	const int64_t queue_bytes = p_opts.get("max_queue_bytes", int64_t(max_queue_bytes));
 	max_response = p_opts.get("max_response", max_response);
 	if (token.is_empty() || token.length() > 4096 || token.contains("\r") || token.contains("\n") || intents < 0 ||
-			(!api_url.begins_with("https://") && !local_url(api_url, "http://")) ||
-			(!gateway_url.begins_with("wss://") && !local_url(gateway_url, "ws://")) ||
+			(api_url != "https://discord.com/api/v10" && !local_url(api_url, "http://") && !local_url(api_url, "https://")) ||
+			p_opts.has("gateway_url") ||
 			max_rest_queue < 1 || max_rest_queue > 1024 || queue_bytes < 1024 || queue_bytes > 64 * 1024 * 1024 ||
-			max_response < 1024 || max_response > 64 * 1024 * 1024) {
+			max_response < 1024 || max_response > 64 * 1024 * 1024 ||
+			max_gateway_packet < 64 * 1024 || max_gateway_packet > GATEWAY_PACKET_MAX ||
+			identify_limit < 1 || identify_limit > 1000000 || invalid_limit < 1 || invalid_limit > 900) {
 		return false;
 	}
+	token_key = token.sha256_text();
 	max_queue_bytes = size_t(queue_bytes);
 	set_process_mode(Node::PROCESS_MODE_ALWAYS);
 	set_process(true);
@@ -619,14 +772,8 @@ Error DiscordWireInternal::start() {
 	}
 	started = true;
 	resume_next = !session_id.is_empty();
-	reconnect_at = now_msec();
+	load_gateway();
 	return OK;
-}
-
-// Gatewayを閉じて自動再接続を止める。
-void DiscordWireInternal::stop(int p_code, const String &p_reason) {
-	started = false;
-	drop_socket(p_code, p_reason);
 }
 
 // 最新presenceを送信待ちへ置く。
@@ -654,7 +801,7 @@ Error DiscordWireInternal::set_presence(const Dictionary &p_data) {
 // REST要求をqueueへ追加する。
 bool DiscordWireInternal::enqueue(const Ref<DiscordCallInternal> &p_call) {
 	const size_t body_bytes = p_call->body.to_utf8_buffer().size();
-	if (rest_queue.size() + (rest_active.is_valid() ? 1 : 0) >= size_t(max_rest_queue) || body_bytes > max_queue_bytes - rest_queue_bytes) {
+	if (!authorized || rest_queue.size() + (rest_active.is_valid() ? 1 : 0) >= size_t(max_rest_queue) || body_bytes > max_queue_bytes - rest_queue_bytes) {
 		return false;
 	}
 	rest_queue.push_back(p_call);
@@ -664,8 +811,17 @@ bool DiscordWireInternal::enqueue(const Ref<DiscordCallInternal> &p_call) {
 
 // Gatewayと全REST要求を閉じる。
 void DiscordWireInternal::shutdown(int p_code, const String &p_reason) {
-	set_process(false);
-	stop(p_code, p_reason);
+	if (closing) {
+		return;
+	}
+	closing = true;
+	started = false;
+	RestStore::cancel(rest_job);
+	rest_job = 0;
+	if (rest_active.is_valid()) {
+		RestStore::sync_async(token_key, rest_active->route, major_of(rest_active->path), rest_active->bucket,
+				0, false, rest_active->permit, true);
+	}
 	clear_http();
 	if (rest_active.is_valid()) {
 		rest_active->finish(reply_of(false, 0, Variant(), "client closed"));
@@ -677,6 +833,18 @@ void DiscordWireInternal::shutdown(int p_code, const String &p_reason) {
 	}
 	rest_queue_bytes = 0;
 	presence_pending = String();
+	if (socket.is_valid() && socket->get_ready_state() != WebSocketPeer::STATE_CLOSED && p_code >= 0) {
+		socket->close(p_code, p_reason);
+		close_deadline = now_msec() + CLOSE_WAIT;
+		set_process(true);
+	} else {
+		socket.unref();
+		set_process(false);
+		if (is_inside_tree()) {
+			queue_free();
+		}
+	}
+	owner = nullptr;
 }
 
 // READY済みか返す。
@@ -702,11 +870,23 @@ String DiscordWireInternal::get_session_id() const {
 // 毎frame GatewayとRESTを進める。
 void DiscordWireInternal::_process(double p_delta) {
 	(void)p_delta;
+	const uint64_t now = now_msec();
+	if (closing) {
+		if (socket.is_valid()) {
+			socket->poll();
+			if (socket->get_ready_state() != WebSocketPeer::STATE_CLOSED && now < close_deadline) {
+				return;
+			}
+			socket.unref();
+		}
+		set_process(false);
+		queue_free();
+		return;
+	}
 	const Ref<DiscordClient> keep = owner ? Ref<DiscordClient>(Variant(owner)) : Ref<DiscordClient>();
 	if (keep.is_null()) {
 		return;
 	}
-	const uint64_t now = now_msec();
 	process_gateway(now);
 	start_rest(now);
 }
@@ -853,7 +1033,6 @@ void DiscordClient::close(int p_code, const String &p_reason) {
 	wire = nullptr;
 	if (closing) {
 		closing->shutdown(p_code, p_reason);
-		closing->queue_free();
 	}
 }
 

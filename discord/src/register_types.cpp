@@ -9,6 +9,7 @@
 #include "register_types.h"
 
 #include "discord_client.h"
+#include "identify_store.h"
 
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/godot.hpp>
@@ -38,6 +39,7 @@ void uninitialize_discord_module(ModuleInitializationLevel p_level) {
 	Engine::get_singleton()->unregister_singleton("Discord");
 	memdelete(discord_api);
 	discord_api = nullptr;
+	RestStore::shutdown();
 }
 
 // engineから呼ばれるGDExtension初期化入口。

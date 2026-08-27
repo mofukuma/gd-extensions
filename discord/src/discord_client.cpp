@@ -280,7 +280,7 @@ void DiscordWireInternal::start_rest(uint64_t p_now) {
 	PackedStringArray headers;
 	headers.push_back("Authorization: Bot " + token);
 	headers.push_back("Accept: application/json");
-	headers.push_back("User-Agent: DiscordBot (https://github.com/mofukuma/gd-cli, 0.1)");
+	headers.push_back("User-Agent: DiscordBot (https://github.com/mofukuma/gd, 0.1)");
 	if (!rest_active->body.is_empty()) {
 		headers.push_back("Content-Type: application/json");
 	}

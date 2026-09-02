@@ -1,0 +1,36 @@
+# native拡張のC/C++ data flowをmainと定期実行で検査する。
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+  schedule:
+    - cron: '31 3 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+      - name: Prepare godot-cpp
+        run: |
+          git clone --filter=blob:none https://github.com/godotengine/godot-cpp tmp/ref_godot_cpp
+          git -C tmp/ref_godot_cpp checkout 9c8aeff0f58ad030f3d1030e8262de1322cd0ccd
+      - name: Build
+        run: bash tests/build.sh linuxbsd x86_64 template_debug
+      - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4

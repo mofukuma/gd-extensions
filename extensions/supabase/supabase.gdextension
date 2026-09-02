@@ -1,0 +1,34 @@
+; Supabaseの公開class、platform library、await型を定義するmanifest。
+
+[configuration]
+; 初期化入口と読込み可能なGodot版。
+entry_symbol = "supabase_library_init"
+compatibility_minimum = "4.7"
+reloadable = true
+
+[libraries]
+; packageが機種ごとに選ぶnative library。
+macos.debug.arm64 = "bin/libgdsupabase.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "bin/libgdsupabase.macos.template_release.arm64.dylib"
+linux.debug.x86_64 = "bin/libgdsupabase.linuxbsd.template_debug.x86_64.so"
+linux.release.x86_64 = "bin/libgdsupabase.linuxbsd.template_release.x86_64.so"
+windows.debug.x86_64 = "bin/libgdsupabase.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "bin/libgdsupabase.windows.template_release.x86_64.dll"
+
+[classes]
+; gdの型推論とcompileが追跡するclass。
+GDSupabaseCallInternal = ""
+GDSupabaseClient = ""
+GDSupabase = ""
+
+[await]
+; 非同期methodをawaitした後の型。
+GDSupabaseClient.select = "Dictionary"
+GDSupabaseClient.insert = "Dictionary"
+GDSupabaseClient.update = "Dictionary"
+GDSupabaseClient.remove = "Dictionary"
+GDSupabaseClient.rpc = "Dictionary"
+GDSupabaseClient.sign_in = "Dictionary"
+GDSupabaseClient.auth_settings = "Dictionary"
+GDSupabaseClient.refresh = "Dictionary"
+GDSupabaseClient.sign_out = "Dictionary"

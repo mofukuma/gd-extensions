@@ -1,0 +1,5 @@
+; Discord Bot GDExtension試験用の最小project。
+config_version=5
+
+[application]
+config/name="discord-ext-test"

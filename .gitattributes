@@ -1,0 +1,2 @@
+# 公式amalgamationはupstreamのbyte列を保ち、local whitespace規則を適用しない。
+thirdparty/sqlite/sqlite3.c -whitespace

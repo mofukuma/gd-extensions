@@ -8,12 +8,12 @@ reloadable = true
 
 [libraries]
 ; packageが機種ごとに選ぶnative library。
-macos.debug.arm64 = "res://bin/libgdmemcached.macos.template_debug.arm64.dylib"
-macos.release.arm64 = "res://bin/libgdmemcached.macos.template_release.arm64.dylib"
-linux.debug.x86_64 = "res://bin/libgdmemcached.linuxbsd.template_debug.x86_64.so"
-linux.release.x86_64 = "res://bin/libgdmemcached.linuxbsd.template_release.x86_64.so"
-windows.debug.x86_64 = "res://bin/libgdmemcached.windows.template_debug.x86_64.dll"
-windows.release.x86_64 = "res://bin/libgdmemcached.windows.template_release.x86_64.dll"
+macos.debug.arm64 = "bin/libgdmemcached.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "bin/libgdmemcached.macos.template_release.arm64.dylib"
+linux.debug.x86_64 = "bin/libgdmemcached.linuxbsd.template_debug.x86_64.so"
+linux.release.x86_64 = "bin/libgdmemcached.linuxbsd.template_release.x86_64.so"
+windows.debug.x86_64 = "bin/libgdmemcached.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "bin/libgdmemcached.windows.template_release.x86_64.dll"
 
 [classes]
 ; gdの型推論とcompileが追跡するclass。

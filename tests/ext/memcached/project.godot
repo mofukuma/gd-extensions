@@ -1,0 +1,11 @@
+; Memcached GDExtensionの実行中load試験project。
+
+config_version=5
+
+[application]
+
+config/name="Memcached GDExtension Test"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

@@ -1,0 +1,211 @@
+# version tagから三OSのnative library、release、静的登録所を作る。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linuxbsd
+            arch: x86_64
+          - os: macos-15
+            platform: macos
+            arch: arm64
+          - os: windows-2022
+            platform: windows
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # tagがmainに含まれるか判断する履歴
+      - name: Require a main commit
+        shell: bash
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Prepare godot-cpp
+        shell: bash
+        run: |
+          git clone --filter=blob:none https://github.com/godotengine/godot-cpp tmp/ref_godot_cpp
+          git -C tmp/ref_godot_cpp checkout 9c8aeff0f58ad030f3d1030e8262de1322cd0ccd
+      - name: Match package versions
+        shell: bash
+        run: |
+          want=${GITHUB_REF_NAME#v}
+          for file in extensions/*/gd.json; do
+            got=$(uv run --no-project python -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$file")
+            test "$want" = "$got"
+          done
+      - name: Build debug and release libraries
+        shell: bash
+        run: |
+          bash tests/build.sh ${{ matrix.platform }} ${{ matrix.arch }} template_debug
+          bash tests/build.sh ${{ matrix.platform }} ${{ matrix.arch }} template_release
+      - name: Download and test release on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 -o tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  tmp/godot.zip' | sha256sum -c -
+          unzip -q tmp/godot.zip -d tmp/godot
+          chmod +x tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          GODOT=tmp/godot/Godot_v4.7.1-stable_linux.x86_64 PLATFORM=linuxbsd ARCH=x86_64 TARGET=template_release bash tests/runtime.sh
+      - name: Download and test release on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 -o tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_macos.universal.zip
+          echo '897cb7f9799796c717ae75f31446aed883dc92b1d6c3b33d893cc7843fff2fa9  tmp/godot.zip' | shasum -a 256 -c -
+          unzip -q tmp/godot.zip -d tmp/godot
+          GODOT=tmp/godot/Godot.app/Contents/MacOS/Godot PLATFORM=macos ARCH=arm64 TARGET=template_release bash tests/runtime.sh
+      - name: Download and test release on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_win64.exe.zip -OutFile tmp/godot.zip
+          if ((Get-FileHash tmp/godot.zip -Algorithm SHA256).Hash.ToLower() -ne 'c7a289051eaefb460b0106b60e9cd5bee0ef55fd102dcb2bed1eb356cf3d90a1') { throw 'Godot checksum mismatch' }
+          Expand-Archive tmp/godot.zip -DestinationPath tmp/godot
+          ./tests/windows.ps1 -Godot tmp/godot/Godot_v4.7.1-stable_win64.exe -Target template_release
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: native-${{ matrix.platform }}
+          path: tmp/*_ext_bin/libgd*
+          if-no-files-found: error
+
+  ecosystem:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: tmp/artifacts
+          merge-multiple: true
+      - name: Read private gd source with a dedicated deploy key
+        env:
+          GD_SOURCE_KEY: ${{ secrets.GD_SOURCE_KEY }}
+        shell: bash
+        run: |
+          test -n "$GD_SOURCE_KEY"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$GD_SOURCE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          curl --fail --silent https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
+          git clone --depth 1 git@github.com:mofukuma/gd.git tmp/gd
+      - name: Build real gd package client
+        run: uvx --from scons==4.10.1 scons -C tmp/gd platform=linuxbsd target=template_debug -j3
+      - name: Build static registry
+        shell: bash
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          uv run --no-project tools/registry.py --source . --artifacts tmp/artifacts --site tmp/site --version "$version"
+      - name: Download official Godot
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 -o tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  tmp/godot.zip' | sha256sum -c -
+          unzip -q tmp/godot.zip -d tmp/godot
+          chmod +x tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Install through HTTP and start with Godot
+        env:
+          GD: tmp/gd/bin/gd.linuxbsd.template_debug.x86_64
+          GODOT: tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          SITE: tmp/site
+        shell: bash
+        run: VERSION=${GITHUB_REF_NAME#v} bash tests/ecosystem.sh
+
+  publish:
+    needs: [build, ecosystem]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # registry branchとtag元を扱う履歴
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: tmp/artifacts
+          merge-multiple: true
+      - name: Prepare persistent registry branch
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --heads origin registry >/dev/null; then
+            git fetch origin registry:refs/remotes/origin/registry
+            git worktree add tmp/site origin/registry
+          else
+            git worktree add --detach tmp/site
+            git -C tmp/site checkout --orphan registry
+            git -C tmp/site rm -rf .
+          fi
+      - name: Build registry and release archives
+        shell: bash
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          uv run --no-project tools/registry.py --source . --artifacts tmp/artifacts --site tmp/site --version "$version"
+          mkdir -p tmp/dist
+          for name in discord memcached supabase; do
+            (cd "tmp/site/@mofukuma/$name/$version" && zip -qr "$GITHUB_WORKSPACE/tmp/dist/$name-$version.zip" .)
+          done
+          (cd tmp/dist && sha256sum *.zip > SHA256SUMS)
+      - name: Save registry versions
+        shell: bash
+        run: |
+          git -C tmp/site config user.name github-actions[bot]
+          git -C tmp/site config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C tmp/site add .
+          if ! git -C tmp/site diff --cached --quiet; then
+            git -C tmp/site commit -m "release: $GITHUB_REF_NAME"
+            git -C tmp/site push origin HEAD:registry
+          fi
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            mkdir -p tmp/existing
+            gh release download "$GITHUB_REF_NAME" --dir tmp/existing
+            diff -ru tmp/dist tmp/existing
+          else
+            gh release create "$GITHUB_REF_NAME" tmp/dist/* --verify-tag --title "gd extensions $GITHUB_REF_NAME" --generate-notes
+          fi
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: tmp/dist/*.zip
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-checksums: tmp/dist/SHA256SUMS
+      - name: Prepare Pages artifact
+        shell: bash
+        run: |
+          mkdir -p tmp/pages
+          cp -R tmp/site/. tmp/pages/
+          rm -f tmp/pages/.git
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: tmp/pages
+      - name: Deploy registry
+        id: deploy
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

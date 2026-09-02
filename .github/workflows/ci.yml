@@ -1,0 +1,85 @@
+# mainの三対応OSでbuildし、本家Godotが拡張を読めることを検査する。
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linuxbsd
+            arch: x86_64
+          - os: macos-15
+            platform: macos
+            arch: arm64
+          - os: windows-2022
+            platform: windows
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Prepare godot-cpp
+        shell: bash
+        run: |
+          git clone --filter=blob:none https://github.com/godotengine/godot-cpp tmp/ref_godot_cpp
+          git -C tmp/ref_godot_cpp checkout 9c8aeff0f58ad030f3d1030e8262de1322cd0ccd
+      - name: Build debug libraries
+        shell: bash
+        run: bash tests/build.sh ${{ matrix.platform }} ${{ matrix.arch }} template_debug
+      - name: Test registry generator
+        shell: bash
+        run: uv run --no-project tests/registry.py
+      - name: Download Godot on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 -o tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  tmp/godot.zip' | sha256sum -c -
+          unzip -q tmp/godot.zip -d tmp/godot
+          chmod +x tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+      - name: Test runtime on Linux
+        if: runner.os == 'Linux'
+        env:
+          GODOT: tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          PLATFORM: linuxbsd
+          ARCH: x86_64
+        shell: bash
+        run: bash tests/runtime.sh
+      - name: Download Godot on macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 -o tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_macos.universal.zip
+          echo '897cb7f9799796c717ae75f31446aed883dc92b1d6c3b33d893cc7843fff2fa9  tmp/godot.zip' | shasum -a 256 -c -
+          unzip -q tmp/godot.zip -d tmp/godot
+      - name: Test runtime on macOS
+        if: runner.os == 'macOS'
+        env:
+          GODOT: tmp/godot/Godot.app/Contents/MacOS/Godot
+          PLATFORM: macos
+          ARCH: arm64
+        shell: bash
+        run: bash tests/runtime.sh
+      - name: Download and test Godot on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_win64.exe.zip -OutFile tmp/godot.zip
+          if ((Get-FileHash tmp/godot.zip -Algorithm SHA256).Hash.ToLower() -ne 'c7a289051eaefb460b0106b60e9cd5bee0ef55fd102dcb2bed1eb356cf3d90a1') { throw 'Godot checksum mismatch' }
+          Expand-Archive tmp/godot.zip -DestinationPath tmp/godot
+          ./tests/windows.ps1 -Godot tmp/godot/Godot_v4.7.1-stable_win64.exe

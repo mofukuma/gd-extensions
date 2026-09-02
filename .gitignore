@@ -1,0 +1,13 @@
+# build、試験、OSが作る生成物をsource treeから外す。
+tmp/
+bin/
+*.os
+*.obj
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.pdb
+.sconsign.dblite
+.DS_Store

@@ -4,7 +4,7 @@
 import os
 
 godot_cpp = os.path.abspath(ARGUMENTS.get("godot_cpp", "../../tmp/ref_godot_cpp"))  # Godot C++ bindingのsource
-out = ARGUMENTS.get("out", "bin")  # native生成物の配置先
+out = ARGUMENTS.get("out", "../../tmp/memcached_ext_bin")  # native生成物の配置先
 os.makedirs(out, exist_ok=True)
 SConsignFile(os.path.join(out, ".sconsign.dblite"))
 env = SConscript(os.path.join(godot_cpp, "SConstruct"), {"api_version": "4.7"})  # Godot 4.7用build環境

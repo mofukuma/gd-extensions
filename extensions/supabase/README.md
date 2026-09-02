@@ -2,6 +2,10 @@
 
 SupabaseのDatabaseとAuthをgdから使う。公開名は`GDSupabase`と`GDSupabaseClient`で、clientの型名は通常書かない。
 
+```sh
+gd add ext:@mofukuma/supabase@^0.1.0
+```
+
 ```gdscript
 var sb := GDSupabase.client(
 	GD.cli.env("SUPABASE_URL"),

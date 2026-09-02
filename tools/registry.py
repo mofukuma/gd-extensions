@@ -41,8 +41,8 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
     expected = {
         f"libgd{name}.macos.template_debug.arm64.dylib",
         f"libgd{name}.macos.template_release.arm64.dylib",
-        f"libgd{name}.linuxbsd.template_debug.x86_64.so",
-        f"libgd{name}.linuxbsd.template_release.x86_64.so",
+        f"libgd{name}.linux.template_debug.x86_64.so",
+        f"libgd{name}.linux.template_release.x86_64.so",
         f"libgd{name}.windows.template_debug.x86_64.dll",
         f"libgd{name}.windows.template_release.x86_64.dll",
     }

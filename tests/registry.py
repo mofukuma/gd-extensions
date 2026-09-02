@@ -17,8 +17,8 @@ def libraries(root: Path, name: str) -> None:
     suffixes = (
         "macos.template_debug.arm64.dylib",
         "macos.template_release.arm64.dylib",
-        "linuxbsd.template_debug.x86_64.so",
-        "linuxbsd.template_release.x86_64.so",
+        "linux.template_debug.x86_64.so",
+        "linux.template_release.x86_64.so",
         "windows.template_debug.x86_64.dll",
         "windows.template_release.x86_64.dll",
     )

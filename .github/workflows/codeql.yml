@@ -32,5 +32,5 @@ jobs:
           git clone --filter=blob:none https://github.com/godotengine/godot-cpp tmp/ref_godot_cpp
           git -C tmp/ref_godot_cpp checkout 9c8aeff0f58ad030f3d1030e8262de1322cd0ccd
       - name: Build
-        run: bash tests/build.sh linuxbsd x86_64 template_debug
+        run: bash tests/build.sh linux x86_64 template_debug
       - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4

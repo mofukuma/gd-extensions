@@ -10,8 +10,8 @@ reloadable = true
 ; packageが機種ごとに選ぶnative library。
 macos.debug.arm64 = "bin/libgdsupabase.macos.template_debug.arm64.dylib"
 macos.release.arm64 = "bin/libgdsupabase.macos.template_release.arm64.dylib"
-linux.debug.x86_64 = "bin/libgdsupabase.linuxbsd.template_debug.x86_64.so"
-linux.release.x86_64 = "bin/libgdsupabase.linuxbsd.template_release.x86_64.so"
+linux.debug.x86_64 = "bin/libgdsupabase.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "bin/libgdsupabase.linux.template_release.x86_64.so"
 windows.debug.x86_64 = "bin/libgdsupabase.windows.template_debug.x86_64.dll"
 windows.release.x86_64 = "bin/libgdsupabase.windows.template_release.x86_64.dll"
 

@@ -21,7 +21,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            platform: linuxbsd
+            platform: linux
             arch: x86_64
           - os: macos-15
             platform: macos
@@ -56,7 +56,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           GODOT: tmp/godot/Godot_v4.7.1-stable_linux.x86_64
-          PLATFORM: linuxbsd
+          PLATFORM: linux
           ARCH: x86_64
         shell: bash
         run: bash tests/runtime.sh

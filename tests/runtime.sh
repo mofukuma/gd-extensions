@@ -12,7 +12,7 @@ LIMIT=${LIMIT:-90} # 一つの試験を待つ最大秒数
 # platformに対応する共有library名を決める。
 case "$PLATFORM" in
 	macos) GODOT_TAG=macos; SUFFIX=dylib ;;
-	linuxbsd) GODOT_TAG=linuxbsd; SUFFIX=so ;;
+	linux) GODOT_TAG=linux; SUFFIX=so ;;
 	*) echo "unsupported runtime platform: $PLATFORM" >&2; exit 2 ;;
 esac
 

@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <deque>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>

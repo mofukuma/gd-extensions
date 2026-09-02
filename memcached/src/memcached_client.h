@@ -18,14 +18,14 @@
 
 namespace godot {
 
-class MemcachedClient;
+class GDMemcachedClient;
 
 // 要求1件を完了まで生かし、結果DictionaryをSignalへ流す。
-class MemcachedCallInternal : public RefCounted {
-	GDCLASS(MemcachedCallInternal, RefCounted);
+class GDMemcachedCallInternal : public RefCounted {
+	GDCLASS(GDMemcachedCallInternal, RefCounted);
 
-	Ref<MemcachedCallInternal> self_hold; // 完了まで自分を生かす参照
-	Ref<MemcachedClient> client; // TCP処理Nodeを生かすclient
+	Ref<GDMemcachedCallInternal> self_hold; // 完了まで自分を生かす参照
+	Ref<GDMemcachedClient> client; // TCP処理Nodeを生かすclient
 
 	// 遅延失敗をSignalへ通知する。
 	void deliver(const Dictionary &p_reply);
@@ -36,7 +36,7 @@ protected:
 
 public:
 	// callとclientの寿命を通信完了まで固定する。
-	void begin(const Ref<MemcachedCallInternal> &p_self, const Ref<MemcachedClient> &p_client);
+	void begin(const Ref<GDMemcachedCallInternal> &p_self, const Ref<GDMemcachedClient> &p_client);
 	// 結果を通知して保持参照を外す。
 	void finish(const Dictionary &p_reply);
 	// 入力検査等の失敗を次frameへ送る。
@@ -44,8 +44,8 @@ public:
 };
 
 // TCP接続、要求queue、protocol解析をSceneTree上で進める内部Node。
-class MemcachedWireInternal : public Node {
-	GDCLASS(MemcachedWireInternal, Node);
+class GDMemcachedWireInternal : public Node {
+	GDCLASS(GDMemcachedWireInternal, Node);
 
 public:
 	// 応答形式を選ぶcommand種別。
@@ -63,7 +63,7 @@ public:
 	struct Request {
 		Kind kind = KIND_GET; // 応答parserの種類
 		PackedByteArray payload; // serverへ送るcommand bytes
-		Ref<MemcachedCallInternal> call; // 完了先
+		Ref<GDMemcachedCallInternal> call; // 完了先
 		Dictionary keys; // wire keyから利用側keyへの対応
 		bool side_effect = false; // timeout時に結果不明となる操作か
 		uint64_t queued_at = 0; // queue待ちを含む期限の起点
@@ -103,7 +103,7 @@ private:
 	// 現要求を完了してqueueの次へ進める。
 	void finish_current(const Dictionary &p_reply);
 	// queue先頭を外し、完了通知用callを返す。
-	Ref<MemcachedCallInternal> take_current();
+	Ref<GDMemcachedCallInternal> take_current();
 
 protected:
 	// 内部Nodeに公開methodを持たせないため空の登録口を置く。
@@ -123,14 +123,14 @@ public:
 	// 毎frame TCPとprotocolを進める。
 	void _process(double p_delta) override;
 	// Node解放時に名前解決要求を片付ける。
-	~MemcachedWireInternal();
+	~GDMemcachedWireInternal();
 };
 
 // key prefix、value codec、主要cache操作を持つ公開client。
-class MemcachedClient : public RefCounted {
-	GDCLASS(MemcachedClient, RefCounted);
+class GDMemcachedClient : public RefCounted {
+	GDCLASS(GDMemcachedClient, RefCounted);
 
-	MemcachedWireInternal *wire = nullptr; // SceneTree上のTCP処理Node
+	GDMemcachedWireInternal *wire = nullptr; // SceneTree上のTCP処理Node
 	String prefix; // 全keyへ足すnamespace
 	int max_value = 1024 * 1024; // 送信valueの上限bytes
 	int max_pending = 1024; // queueへ保持する要求上限
@@ -140,13 +140,13 @@ class MemcachedClient : public RefCounted {
 	// Variantをflags付きbytesへ変換する。
 	bool encode(const Variant &p_value, PackedByteArray &r_bytes, uint32_t &r_flags) const;
 	// callを作り、通信要求または遅延失敗を返す。
-	Signal request(MemcachedWireInternal::Request p_request, const String &p_error = String(), const String &p_kind = "invalid_data");
+	Signal request(GDMemcachedWireInternal::Request p_request, const String &p_error = String(), const String &p_kind = "invalid_data");
 	// storage commandを共通形式で作る。
 	Signal store(const String &p_command, const String &p_key, const Variant &p_value, int64_t p_ttl);
 	// keyと数値だけのcommandを共通形式で作る。
-	Signal key_number(const String &p_command, const String &p_key, int64_t p_value, MemcachedWireInternal::Kind p_kind, bool p_side_effect);
+	Signal key_number(const String &p_command, const String &p_key, int64_t p_value, GDMemcachedWireInternal::Kind p_kind, bool p_side_effect);
 
-	friend class Memcached;
+	friend class GDMemcached;
 
 protected:
 	// Memcached clientの公開methodを登録する。
@@ -180,12 +180,12 @@ public:
 	// 待ち要求とTCP接続を閉じる。
 	void close();
 	// client解放時に内部Nodeを片付ける。
-	~MemcachedClient();
+	~GDMemcachedClient();
 };
 
 // Memcached clientの生成口を大域Singletonへまとめる。
-class Memcached : public Object {
-	GDCLASS(Memcached, Object);
+class GDMemcached : public Object {
+	GDCLASS(GDMemcached, Object);
 
 protected:
 	// Memcached Singletonのfactoryを登録する。
@@ -193,7 +193,7 @@ protected:
 
 public:
 	// 設定済みclientを作る。
-	Ref<MemcachedClient> client(const String &p_host = "127.0.0.1", int p_port = 11211, const Dictionary &p_opts = Dictionary());
+	Ref<GDMemcachedClient> client(const String &p_host = "127.0.0.1", int p_port = 11211, const Dictionary &p_opts = Dictionary());
 };
 
 } // namespace godot

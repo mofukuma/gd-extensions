@@ -17,11 +17,11 @@
 
 namespace godot {
 
-class SupabaseClient;
+class GDSupabaseClient;
 
 // HTTP要求1件を完了まで生かし、結果DictionaryをSignalへ流す。
-class SupabaseCallInternal : public RefCounted {
-	GDCLASS(SupabaseCallInternal, RefCounted);
+class GDSupabaseCallInternal : public RefCounted {
+	GDCLASS(GDSupabaseCallInternal, RefCounted);
 
 public:
 	// Auth応答をclientへ反映する種類。
@@ -32,8 +32,8 @@ public:
 	};
 
 private:
-	Ref<SupabaseCallInternal> self_hold; // 完了まで自分を生かす参照
-	Ref<SupabaseClient> client; // sessionを更新するclient
+	Ref<GDSupabaseCallInternal> self_hold; // 完了まで自分を生かす参照
+	Ref<GDSupabaseClient> client; // sessionを更新するclient
 	HTTPRequest *request_node = nullptr; // SceneTree上で通信するNode
 	Action action = ACTION_NONE; // 完了時に行うsession操作
 
@@ -50,14 +50,14 @@ protected:
 
 public:
 	// HTTPRequestをSceneTreeへ載せて通信を始める。
-	void start(const Ref<SupabaseCallInternal> &p_self, const Ref<SupabaseClient> &p_client,
+	void start(const Ref<GDSupabaseCallInternal> &p_self, const Ref<GDSupabaseClient> &p_client,
 			const String &p_url, HTTPClient::Method p_method, const PackedStringArray &p_headers,
 			const String &p_body, Action p_action);
 };
 
 // project設定、session、Database/Authの短いAPIを持つ内部client。
-class SupabaseClient : public RefCounted {
-	GDCLASS(SupabaseClient, RefCounted);
+class GDSupabaseClient : public RefCounted {
+	GDCLASS(GDSupabaseClient, RefCounted);
 
 	String base_url; // projectの基準URL
 	String api_key; // publishableまたは旧anon key
@@ -76,14 +76,14 @@ class SupabaseClient : public RefCounted {
 	String table_url(const String &p_table, const Dictionary &p_query) const;
 	// HTTP Callを作り、待てるSignalを返す。
 	Signal send(const String &p_url, HTTPClient::Method p_method, const String &p_body,
-			const PackedStringArray &p_more, SupabaseCallInternal::Action p_action, bool p_rest = true);
+			const PackedStringArray &p_more, GDSupabaseCallInternal::Action p_action, bool p_rest = true);
 	// Auth成功時に新しいsessionを控える。
 	void accept_session(const Dictionary &p_session);
 	// sign out成功時にsessionを空にする。
 	void clear_session();
 
-	friend class SupabaseCallInternal;
-	friend class Supabase;
+	friend class GDSupabaseCallInternal;
+	friend class GDSupabase;
 
 protected:
 	// Supabase clientの公開methodを登録する。
@@ -119,8 +119,8 @@ public:
 };
 
 // Supabase clientの生成口を大域Singletonへまとめる。
-class Supabase : public Object {
-	GDCLASS(Supabase, Object);
+class GDSupabase : public Object {
+	GDCLASS(GDSupabase, Object);
 
 protected:
 	// Supabase Singletonのfactoryを登録する。
@@ -128,7 +128,7 @@ protected:
 
 public:
 	// 設定済みclientを作る。
-	Ref<SupabaseClient> client(const String &p_url, const String &p_key, const Dictionary &p_opts = Dictionary());
+	Ref<GDSupabaseClient> client(const String &p_url, const String &p_key, const Dictionary &p_opts = Dictionary());
 };
 
 } // namespace godot

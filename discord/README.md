@@ -1,6 +1,6 @@
 # Discord Bot GDExtension
 
-Discord Gateway v10とRESTを使う文字Bot拡張。`Discord.bot()`が返すclientを保持して使う。
+Discord Gateway v10とRESTを使う文字Bot拡張。公開名は`GDDiscord`と`GDDiscordClient`で、`GDDiscord.bot()`が返すclientを保持して使う。
 
 ```gdscript
 var bot
@@ -9,8 +9,8 @@ var bot
 # Botを起動し、Gatewayの準備完了を待つ。
 func main() -> int:
 	var token := OS.get_environment("DISCORD_TOKEN")
-	bot = Discord.bot(token, {
-		"intents": Discord.GUILDS | Discord.GUILD_MESSAGES | Discord.MESSAGE_CONTENT,
+	bot = GDDiscord.bot(token, {
+		"intents": GDDiscord.GUILDS | GDDiscord.GUILD_MESSAGES | GDDiscord.MESSAGE_CONTENT,
 	})
 	if bot == null:
 		return 1

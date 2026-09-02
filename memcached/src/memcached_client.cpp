@@ -118,36 +118,36 @@ static Dictionary line_error(const String &p_line) {
 }
 
 // 遅延失敗をSignalへ通知する。
-void MemcachedCallInternal::deliver(const Dictionary &p_reply) {
+void GDMemcachedCallInternal::deliver(const Dictionary &p_reply) {
 	finish(p_reply);
 }
 
 // callとclientの寿命を通信完了まで固定する。
-void MemcachedCallInternal::begin(const Ref<MemcachedCallInternal> &p_self, const Ref<MemcachedClient> &p_client) {
+void GDMemcachedCallInternal::begin(const Ref<GDMemcachedCallInternal> &p_self, const Ref<GDMemcachedClient> &p_client) {
 	self_hold = p_self;
 	client = p_client;
 }
 
 // 結果を通知して保持参照を外す。
-void MemcachedCallInternal::finish(const Dictionary &p_reply) {
+void GDMemcachedCallInternal::finish(const Dictionary &p_reply) {
 	emit_signal("finished", p_reply);
 	client.unref();
 	self_hold.unref();
 }
 
 // 入力検査等の失敗を次frameへ送る。
-void MemcachedCallInternal::fail_later(const Dictionary &p_reply) {
+void GDMemcachedCallInternal::fail_later(const Dictionary &p_reply) {
 	call_deferred("_deliver", p_reply);
 }
 
 // 遅延通知methodと完了Signalを登録する。
-void MemcachedCallInternal::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("_deliver", "reply"), &MemcachedCallInternal::deliver);
+void GDMemcachedCallInternal::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("_deliver", "reply"), &GDMemcachedCallInternal::deliver);
 	ADD_SIGNAL(MethodInfo("finished", PropertyInfo(Variant::DICTIONARY, "reply")));
 }
 
 // 待機中の名前解決要求を破棄する。
-void MemcachedWireInternal::cancel_resolver() {
+void GDMemcachedWireInternal::cancel_resolver() {
 	if (resolver != IP::RESOLVER_INVALID_ID) {
 		IP::get_singleton()->erase_resolve_item(resolver);
 		resolver = IP::RESOLVER_INVALID_ID;
@@ -155,7 +155,7 @@ void MemcachedWireInternal::cancel_resolver() {
 }
 
 // 接続を破棄し、次要求が新規接続する状態へ戻す。
-void MemcachedWireInternal::drop_connection() {
+void GDMemcachedWireInternal::drop_connection() {
 	cancel_resolver();
 	if (peer.is_valid()) {
 		peer->disconnect_from_host();
@@ -172,13 +172,13 @@ void MemcachedWireInternal::drop_connection() {
 }
 
 // 現要求を失敗させ、壊れた接続を破棄する。
-void MemcachedWireInternal::fail_current(const String &p_msg, const String &p_kind) {
+void GDMemcachedWireInternal::fail_current(const String &p_msg, const String &p_kind) {
 	if (queue.empty()) {
 		return;
 	}
 	const Request &request = queue.front();
 	const String kind = request.side_effect && sent && (p_kind == "network" || p_kind == "timed_out") ? "ambiguous" : p_kind;
-	Ref<MemcachedCallInternal> call = take_current();
+	Ref<GDMemcachedCallInternal> call = take_current();
 	drop_connection();
 	if (p_kind == "network" && !host.is_valid_ip_address()) {
 		resolved_host = String();
@@ -187,7 +187,7 @@ void MemcachedWireInternal::fail_current(const String &p_msg, const String &p_ki
 }
 
 // 現要求のbufferを解析し、完成時に結果を返す。
-int MemcachedWireInternal::parse_current(Dictionary &r_reply, String &r_error) {
+int GDMemcachedWireInternal::parse_current(Dictionary &r_reply, String &r_error) {
 	if (queue.empty()) {
 		return PARSE_WAIT;
 	}
@@ -326,11 +326,11 @@ int MemcachedWireInternal::parse_current(Dictionary &r_reply, String &r_error) {
 }
 
 // 現要求を完了してqueueの次へ進める。
-void MemcachedWireInternal::finish_current(const Dictionary &p_reply) {
+void GDMemcachedWireInternal::finish_current(const Dictionary &p_reply) {
 	if (queue.empty()) {
 		return;
 	}
-	Ref<MemcachedCallInternal> call = take_current();
+	Ref<GDMemcachedCallInternal> call = take_current();
 	input.clear();
 	parsed_values = Dictionary();
 	parsed_flags = Dictionary();
@@ -344,15 +344,15 @@ void MemcachedWireInternal::finish_current(const Dictionary &p_reply) {
 }
 
 // queue先頭を外し、完了通知用callを返す。
-Ref<MemcachedCallInternal> MemcachedWireInternal::take_current() {
-	Ref<MemcachedCallInternal> call = queue.front().call;
+Ref<GDMemcachedCallInternal> GDMemcachedWireInternal::take_current() {
+	Ref<GDMemcachedCallInternal> call = queue.front().call;
 	queue_bytes -= queue.front().payload.size();
 	queue.pop_front();
 	return call;
 }
 
 // 接続先と資源上限を設定する。
-void MemcachedWireInternal::setup(const String &p_host, int p_port, int p_timeout_ms, int p_idle_ms, int p_max_response, int64_t p_max_queue_bytes, int p_ip_type) {
+void GDMemcachedWireInternal::setup(const String &p_host, int p_port, int p_timeout_ms, int p_idle_ms, int p_max_response, int64_t p_max_queue_bytes, int p_ip_type) {
 	host = p_host;
 	port = p_port;
 	timeout_ms = p_timeout_ms;
@@ -364,32 +364,32 @@ void MemcachedWireInternal::setup(const String &p_host, int p_port, int p_timeou
 }
 
 // 要求をqueueへ追加する。
-void MemcachedWireInternal::enqueue(const Request &p_request) {
+void GDMemcachedWireInternal::enqueue(const Request &p_request) {
 	queue.push_back(p_request);
 	queue_bytes += p_request.payload.size();
 }
 
 // payloadを総byte上限内でqueueへ追加できるか調べる。
-bool MemcachedWireInternal::can_enqueue(int p_bytes) const {
+bool GDMemcachedWireInternal::can_enqueue(int p_bytes) const {
 	return p_bytes >= 0 && queue_bytes <= max_queue_bytes - p_bytes;
 }
 
 // 現在待っている要求数を返す。
-int MemcachedWireInternal::pending() const {
+int GDMemcachedWireInternal::pending() const {
 	return int(queue.size());
 }
 
 // 全要求を失敗させ、接続を閉じる。
-void MemcachedWireInternal::shutdown() {
+void GDMemcachedWireInternal::shutdown() {
 	while (!queue.empty()) {
-		Ref<MemcachedCallInternal> call = take_current();
+		Ref<GDMemcachedCallInternal> call = take_current();
 		call->finish(error_reply("client closed", "interrupted"));
 	}
 	drop_connection();
 }
 
 // 毎frame TCPとprotocolを進める。
-void MemcachedWireInternal::_process(double p_delta) {
+void GDMemcachedWireInternal::_process(double p_delta) {
 	(void)p_delta;
 	const uint64_t now = ticks_msec();
 	if (queue.empty()) {
@@ -516,16 +516,16 @@ void MemcachedWireInternal::_process(double p_delta) {
 }
 
 // Node解放時に名前解決要求を片付ける。
-MemcachedWireInternal::~MemcachedWireInternal() {
+GDMemcachedWireInternal::~GDMemcachedWireInternal() {
 	cancel_resolver();
 }
 
 // 内部Nodeに公開methodを持たせないため空の登録口を置く。
-void MemcachedWireInternal::_bind_methods() {
+void GDMemcachedWireInternal::_bind_methods() {
 }
 
 // prefix適用後のkeyをprotocol制約へ合わせる。
-bool MemcachedClient::wire_key(const String &p_key, String &r_key) const {
+bool GDMemcachedClient::wire_key(const String &p_key, String &r_key) const {
 	r_key = prefix + p_key;
 	const PackedByteArray bytes = r_key.to_utf8_buffer();
 	if (bytes.is_empty() || bytes.size() > 250) {
@@ -540,7 +540,7 @@ bool MemcachedClient::wire_key(const String &p_key, String &r_key) const {
 }
 
 // Variantをflags付きbytesへ変換する。
-bool MemcachedClient::encode(const Variant &p_value, PackedByteArray &r_bytes, uint32_t &r_flags) const {
+bool GDMemcachedClient::encode(const Variant &p_value, PackedByteArray &r_bytes, uint32_t &r_flags) const {
 	switch (p_value.get_type()) {
 		case Variant::PACKED_BYTE_ARRAY:
 			r_bytes = p_value;
@@ -563,10 +563,10 @@ bool MemcachedClient::encode(const Variant &p_value, PackedByteArray &r_bytes, u
 }
 
 // callを作り、通信要求または遅延失敗を返す。
-Signal MemcachedClient::request(MemcachedWireInternal::Request p_request, const String &p_error, const String &p_kind) {
-	Ref<MemcachedCallInternal> call;
+Signal GDMemcachedClient::request(GDMemcachedWireInternal::Request p_request, const String &p_error, const String &p_kind) {
+	Ref<GDMemcachedCallInternal> call;
 	call.instantiate();
-	const Ref<MemcachedClient> owner = Variant(this);
+	const Ref<GDMemcachedClient> owner = Variant(this);
 	call->begin(call, owner);
 	p_request.call = call;
 	p_request.queued_at = ticks_msec();
@@ -581,9 +581,9 @@ Signal MemcachedClient::request(MemcachedWireInternal::Request p_request, const 
 }
 
 // storage commandを共通形式で作る。
-Signal MemcachedClient::store(const String &p_command, const String &p_key, const Variant &p_value, int64_t p_ttl) {
-	MemcachedWireInternal::Request request_data;
-	request_data.kind = MemcachedWireInternal::KIND_STORE;
+Signal GDMemcachedClient::store(const String &p_command, const String &p_key, const Variant &p_value, int64_t p_ttl) {
+	GDMemcachedWireInternal::Request request_data;
+	request_data.kind = GDMemcachedWireInternal::KIND_STORE;
 	request_data.side_effect = true;
 	String key;
 	if (!wire_key(p_key, key)) {
@@ -604,15 +604,15 @@ Signal MemcachedClient::store(const String &p_command, const String &p_key, cons
 }
 
 // keyと数値だけのcommandを共通形式で作る。
-Signal MemcachedClient::key_number(const String &p_command, const String &p_key, int64_t p_value, MemcachedWireInternal::Kind p_kind, bool p_side_effect) {
-	MemcachedWireInternal::Request request_data;
+Signal GDMemcachedClient::key_number(const String &p_command, const String &p_key, int64_t p_value, GDMemcachedWireInternal::Kind p_kind, bool p_side_effect) {
+	GDMemcachedWireInternal::Request request_data;
 	request_data.kind = p_kind;
 	request_data.side_effect = p_side_effect;
 	String key;
 	if (!wire_key(p_key, key)) {
 		return request(request_data, "memcached key is invalid");
 	}
-	if (p_value < 0 || (p_kind == MemcachedWireInternal::KIND_TOUCH && p_value > INT32_MAX)) {
+	if (p_value < 0 || (p_kind == GDMemcachedWireInternal::KIND_TOUCH && p_value > INT32_MAX)) {
 		return request(request_data, "memcached number is out of range");
 	}
 	request_data.payload = vformat("%s %s %d\r\n", p_command, key, p_value).to_utf8_buffer();
@@ -620,7 +620,7 @@ Signal MemcachedClient::key_number(const String &p_command, const String &p_key,
 }
 
 // SceneTreeへTCP処理Nodeを作り、client設定を反映する。
-bool MemcachedClient::setup(const String &p_host, int p_port, const Dictionary &p_opts) {
+bool GDMemcachedClient::setup(const String &p_host, int p_port, const Dictionary &p_opts) {
 	SceneTree *tree = Object::cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
 	Node *root = tree ? Object::cast_to<Node>(tree->call("get_root")) : nullptr;
 	if (!root) {
@@ -642,16 +642,16 @@ bool MemcachedClient::setup(const String &p_host, int p_port, const Dictionary &
 			max_queue_bytes < max_value + RESPONSE_OVERHEAD || max_queue_bytes > 512 * 1024 * 1024 || timeout_ms < min_timeout || ip_type < 0) {
 		return false;
 	}
-	wire = memnew(MemcachedWireInternal);
+	wire = memnew(GDMemcachedWireInternal);
 	wire->setup(p_host, p_port, timeout_ms, idle_ms, max_response, max_queue_bytes, ip_type);
 	root->add_child(wire);
 	return true;
 }
 
 // keyのvalueを取得する。missはhit=falseで返す。
-Signal MemcachedClient::get(const String &p_key) {
-	MemcachedWireInternal::Request request_data;
-	request_data.kind = MemcachedWireInternal::KIND_GET;
+Signal GDMemcachedClient::get(const String &p_key) {
+	GDMemcachedWireInternal::Request request_data;
+	request_data.kind = GDMemcachedWireInternal::KIND_GET;
 	String key;
 	if (!wire_key(p_key, key)) {
 		return request(request_data, "memcached key is invalid");
@@ -662,9 +662,9 @@ Signal MemcachedClient::get(const String &p_key) {
 }
 
 // 複数keyを1往復で取得する。
-Signal MemcachedClient::get_many(const PackedStringArray &p_keys) {
-	MemcachedWireInternal::Request request_data;
-	request_data.kind = MemcachedWireInternal::KIND_GET_MANY;
+Signal GDMemcachedClient::get_many(const PackedStringArray &p_keys) {
+	GDMemcachedWireInternal::Request request_data;
+	request_data.kind = GDMemcachedWireInternal::KIND_GET_MANY;
 	if (p_keys.is_empty() || p_keys.size() > 1024) {
 		return request(request_data, "memcached key list is empty or too large", "limited");
 	}
@@ -684,14 +684,14 @@ Signal MemcachedClient::get_many(const PackedStringArray &p_keys) {
 }
 
 // Variantをcodec付きで保存する。
-Signal MemcachedClient::set(const String &p_key, const Variant &p_value, int64_t p_ttl) {
+Signal GDMemcachedClient::set(const String &p_key, const Variant &p_value, int64_t p_ttl) {
 	return store("set", p_key, p_value, p_ttl);
 }
 
 // raw bytesとflagsをそのまま保存する。
-Signal MemcachedClient::set_raw(const String &p_key, const PackedByteArray &p_value, int64_t p_flags, int64_t p_ttl) {
-	MemcachedWireInternal::Request request_data;
-	request_data.kind = MemcachedWireInternal::KIND_STORE;
+Signal GDMemcachedClient::set_raw(const String &p_key, const PackedByteArray &p_value, int64_t p_flags, int64_t p_ttl) {
+	GDMemcachedWireInternal::Request request_data;
+	request_data.kind = GDMemcachedWireInternal::KIND_STORE;
 	request_data.side_effect = true;
 	String key;
 	if (!wire_key(p_key, key)) {
@@ -710,19 +710,19 @@ Signal MemcachedClient::set_raw(const String &p_key, const PackedByteArray &p_va
 }
 
 // keyが無い場合だけ保存する。
-Signal MemcachedClient::add(const String &p_key, const Variant &p_value, int64_t p_ttl) {
+Signal GDMemcachedClient::add(const String &p_key, const Variant &p_value, int64_t p_ttl) {
 	return store("add", p_key, p_value, p_ttl);
 }
 
 // keyが有る場合だけ保存する。
-Signal MemcachedClient::replace(const String &p_key, const Variant &p_value, int64_t p_ttl) {
+Signal GDMemcachedClient::replace(const String &p_key, const Variant &p_value, int64_t p_ttl) {
 	return store("replace", p_key, p_value, p_ttl);
 }
 
 // keyを削除する。
-Signal MemcachedClient::remove(const String &p_key) {
-	MemcachedWireInternal::Request request_data;
-	request_data.kind = MemcachedWireInternal::KIND_DELETE;
+Signal GDMemcachedClient::remove(const String &p_key) {
+	GDMemcachedWireInternal::Request request_data;
+	request_data.kind = GDMemcachedWireInternal::KIND_DELETE;
 	request_data.side_effect = true;
 	String key;
 	if (!wire_key(p_key, key)) {
@@ -733,31 +733,31 @@ Signal MemcachedClient::remove(const String &p_key) {
 }
 
 // keyの期限を更新する。
-Signal MemcachedClient::touch(const String &p_key, int64_t p_ttl) {
-	return key_number("touch", p_key, p_ttl, MemcachedWireInternal::KIND_TOUCH, true);
+Signal GDMemcachedClient::touch(const String &p_key, int64_t p_ttl) {
+	return key_number("touch", p_key, p_ttl, GDMemcachedWireInternal::KIND_TOUCH, true);
 }
 
 // unsigned counterを増やす。
-Signal MemcachedClient::increment(const String &p_key, int64_t p_delta) {
-	return key_number("incr", p_key, p_delta, MemcachedWireInternal::KIND_MATH, true);
+Signal GDMemcachedClient::increment(const String &p_key, int64_t p_delta) {
+	return key_number("incr", p_key, p_delta, GDMemcachedWireInternal::KIND_MATH, true);
 }
 
 // unsigned counterを減らす。
-Signal MemcachedClient::decrement(const String &p_key, int64_t p_delta) {
-	return key_number("decr", p_key, p_delta, MemcachedWireInternal::KIND_MATH, true);
+Signal GDMemcachedClient::decrement(const String &p_key, int64_t p_delta) {
+	return key_number("decr", p_key, p_delta, GDMemcachedWireInternal::KIND_MATH, true);
 }
 
 // server versionを得る。
-Signal MemcachedClient::version() {
-	MemcachedWireInternal::Request request_data;
-	request_data.kind = MemcachedWireInternal::KIND_VERSION;
+Signal GDMemcachedClient::version() {
+	GDMemcachedWireInternal::Request request_data;
+	request_data.kind = GDMemcachedWireInternal::KIND_VERSION;
 	request_data.payload = String("version\r\n").to_utf8_buffer();
 	return request(request_data);
 }
 
 // 待ち要求とTCP接続を閉じる。
-void MemcachedClient::close() {
-	MemcachedWireInternal *closing = wire;
+void GDMemcachedClient::close() {
+	GDMemcachedWireInternal *closing = wire;
 	wire = nullptr;
 	if (closing) {
 		closing->shutdown();
@@ -766,37 +766,37 @@ void MemcachedClient::close() {
 }
 
 // client解放時に内部Nodeを片付ける。
-MemcachedClient::~MemcachedClient() {
+GDMemcachedClient::~GDMemcachedClient() {
 	close();
 }
 
 // Memcached clientの公開methodを登録する。
-void MemcachedClient::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get", "key"), &MemcachedClient::get);
-	ClassDB::bind_method(D_METHOD("get_many", "keys"), &MemcachedClient::get_many);
-	ClassDB::bind_method(D_METHOD("set", "key", "value", "ttl"), &MemcachedClient::set, DEFVAL(0));
-	ClassDB::bind_method(D_METHOD("set_raw", "key", "value", "flags", "ttl"), &MemcachedClient::set_raw, DEFVAL(0), DEFVAL(0));
-	ClassDB::bind_method(D_METHOD("add", "key", "value", "ttl"), &MemcachedClient::add, DEFVAL(0));
-	ClassDB::bind_method(D_METHOD("replace", "key", "value", "ttl"), &MemcachedClient::replace, DEFVAL(0));
-	ClassDB::bind_method(D_METHOD("remove", "key"), &MemcachedClient::remove);
-	ClassDB::bind_method(D_METHOD("touch", "key", "ttl"), &MemcachedClient::touch);
-	ClassDB::bind_method(D_METHOD("increment", "key", "delta"), &MemcachedClient::increment, DEFVAL(1));
-	ClassDB::bind_method(D_METHOD("decrement", "key", "delta"), &MemcachedClient::decrement, DEFVAL(1));
-	ClassDB::bind_method(D_METHOD("version"), &MemcachedClient::version);
-	ClassDB::bind_method(D_METHOD("close"), &MemcachedClient::close);
+void GDMemcachedClient::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get", "key"), &GDMemcachedClient::get);
+	ClassDB::bind_method(D_METHOD("get_many", "keys"), &GDMemcachedClient::get_many);
+	ClassDB::bind_method(D_METHOD("set", "key", "value", "ttl"), &GDMemcachedClient::set, DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("set_raw", "key", "value", "flags", "ttl"), &GDMemcachedClient::set_raw, DEFVAL(0), DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("add", "key", "value", "ttl"), &GDMemcachedClient::add, DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("replace", "key", "value", "ttl"), &GDMemcachedClient::replace, DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("remove", "key"), &GDMemcachedClient::remove);
+	ClassDB::bind_method(D_METHOD("touch", "key", "ttl"), &GDMemcachedClient::touch);
+	ClassDB::bind_method(D_METHOD("increment", "key", "delta"), &GDMemcachedClient::increment, DEFVAL(1));
+	ClassDB::bind_method(D_METHOD("decrement", "key", "delta"), &GDMemcachedClient::decrement, DEFVAL(1));
+	ClassDB::bind_method(D_METHOD("version"), &GDMemcachedClient::version);
+	ClassDB::bind_method(D_METHOD("close"), &GDMemcachedClient::close);
 }
 
 // 設定済みclientを作る。
-Ref<MemcachedClient> Memcached::client(const String &p_host, int p_port, const Dictionary &p_opts) {
-	Ref<MemcachedClient> out;
+Ref<GDMemcachedClient> GDMemcached::client(const String &p_host, int p_port, const Dictionary &p_opts) {
+	Ref<GDMemcachedClient> out;
 	out.instantiate();
-	ERR_FAIL_COND_V_MSG(!out->setup(p_host, p_port, p_opts), Ref<MemcachedClient>(), "Invalid Memcached client settings or missing SceneTree");
+	ERR_FAIL_COND_V_MSG(!out->setup(p_host, p_port, p_opts), Ref<GDMemcachedClient>(), "Invalid Memcached client settings or missing SceneTree");
 	return out;
 }
 
 // Memcached Singletonのfactoryを登録する。
-void Memcached::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("client", "host", "port", "opts"), &Memcached::client, DEFVAL("127.0.0.1"), DEFVAL(11211), DEFVAL(Dictionary()));
+void GDMemcached::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("client", "host", "port", "opts"), &GDMemcached::client, DEFVAL("127.0.0.1"), DEFVAL(11211), DEFVAL(Dictionary()));
 }
 
 } // namespace godot

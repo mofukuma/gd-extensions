@@ -15,7 +15,7 @@
 namespace godot {
 
 // tokenを保存せず、digestごとのIdentify送信数と公式残数を共有する。
-class IdentifyStore {
+class GDDiscordIdentifyStore {
 public:
 	// Identify送信前の判定結果。
 	enum Result {
@@ -38,7 +38,7 @@ public:
 };
 
 // tokenごとのREST global枠とroute bucketをprocess間で共有する。
-class RestStore {
+class GDDiscordRestStore {
 public:
 	// REST送信前の判定結果。
 	enum Result {

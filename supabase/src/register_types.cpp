@@ -15,18 +15,18 @@
 
 using namespace godot;
 
-static Supabase *supabase_api = nullptr; // 公開Singletonの実体
+static GDSupabase *supabase_api = nullptr; // 公開Singletonの実体
 
 // SupabaseのclassとSingletonを登録する。
 void initialize_supabase_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	GDREGISTER_INTERNAL_CLASS(SupabaseCallInternal);
-	GDREGISTER_CLASS(SupabaseClient);
-	GDREGISTER_CLASS(Supabase);
-	supabase_api = memnew(Supabase);
-	Engine::get_singleton()->register_singleton("Supabase", supabase_api);
+	GDREGISTER_INTERNAL_CLASS(GDSupabaseCallInternal);
+	GDREGISTER_CLASS(GDSupabaseClient);
+	GDREGISTER_CLASS(GDSupabase);
+	supabase_api = memnew(GDSupabase);
+	Engine::get_singleton()->register_singleton("GDSupabase", supabase_api);
 }
 
 // SupabaseのSingletonを外してclassを解放可能にする。
@@ -34,7 +34,7 @@ void uninitialize_supabase_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	Engine::get_singleton()->unregister_singleton("Supabase");
+	Engine::get_singleton()->unregister_singleton("GDSupabase");
 	memdelete(supabase_api);
 	supabase_api = nullptr;
 }

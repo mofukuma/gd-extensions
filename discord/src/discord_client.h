@@ -21,14 +21,14 @@
 
 namespace godot {
 
-class DiscordClient;
+class GDDiscordClient;
 
 // REST要求1件を完了まで生かし、結果DictionaryをSignalへ流す。
-class DiscordCallInternal : public RefCounted {
-	GDCLASS(DiscordCallInternal, RefCounted);
+class GDDiscordCallInternal : public RefCounted {
+	GDCLASS(GDDiscordCallInternal, RefCounted);
 
-	Ref<DiscordCallInternal> self_hold; // 完了まで自分を生かす参照
-	Ref<DiscordClient> client; // 通信中にclientを生かす参照
+	Ref<GDDiscordCallInternal> self_hold; // 完了まで自分を生かす参照
+	Ref<GDDiscordClient> client; // 通信中にclientを生かす参照
 	HTTPClient::Method method = HTTPClient::METHOD_GET; // REST method
 	String path; // API基準URLからの相対path
 	String route; // rate limitを共有する正規化route
@@ -37,8 +37,8 @@ class DiscordCallInternal : public RefCounted {
 	uint64_t permit = 0; // invalid応答枠の予約ID
 	int retries = 0; // 429を再送した回数
 
-	friend class DiscordWireInternal;
-	friend class DiscordClient;
+	friend class GDDiscordWireInternal;
+	friend class GDDiscordClient;
 
 	// 遅延失敗をSignalへ流す。
 	void fail_later(const Dictionary &p_reply);
@@ -49,21 +49,21 @@ protected:
 
 public:
 	// 自己参照とclientを保持してREST要求を設定する。
-	void begin(const Ref<DiscordCallInternal> &p_self, const Ref<DiscordClient> &p_client,
+	void begin(const Ref<GDDiscordCallInternal> &p_self, const Ref<GDDiscordClient> &p_client,
 			HTTPClient::Method p_method, const String &p_path, const String &p_route, const String &p_body);
 	// 結果を通知して保持参照を片付ける。
 	void finish(const Dictionary &p_reply);
 };
 
 // SceneTree上でGatewayとREST queueを毎frame進める内部Node。
-class DiscordWireInternal : public Node {
-	GDCLASS(DiscordWireInternal, Node);
+class GDDiscordWireInternal : public Node {
+	GDCLASS(GDDiscordWireInternal, Node);
 
-	DiscordClient *owner = nullptr; // signalを出す公開client
+	GDDiscordClient *owner = nullptr; // signalを出す公開client
 	Ref<WebSocketPeer> socket; // 本家WebSocket transport
 	HTTPRequest *http = nullptr; // 現在のREST要求
-	std::deque<Ref<DiscordCallInternal>> rest_queue; // RESTの直列待ち
-	Ref<DiscordCallInternal> rest_active; // 実行中のREST要求
+	std::deque<Ref<GDDiscordCallInternal>> rest_queue; // RESTの直列待ち
+	Ref<GDDiscordCallInternal> rest_active; // 実行中のREST要求
 	std::deque<uint64_t> presence_at; // 過去20秒のpresence送信時刻
 	String presence_pending; // 次に送る最新presence payload
 	String token; // Bot token。外へ表示しない
@@ -154,13 +154,13 @@ protected:
 
 public:
 	// token、endpoint、資源上限を設定する。
-	bool setup(DiscordClient *p_owner, const String &p_token, const Dictionary &p_opts);
+	bool setup(GDDiscordClient *p_owner, const String &p_token, const Dictionary &p_opts);
 	// Gateway接続と自動再接続を始める。
 	Error start();
 	// 最新presenceを送信待ちへ置く。
 	Error set_presence(const Dictionary &p_data);
 	// REST要求をqueueへ追加する。
-	bool enqueue(const Ref<DiscordCallInternal> &p_call);
+	bool enqueue(const Ref<GDDiscordCallInternal> &p_call);
 	// Gatewayと全REST要求を閉じる。
 	void shutdown(int p_code = 1000, const String &p_reason = String());
 	// READY済みか返す。
@@ -174,14 +174,14 @@ public:
 	// 毎frame GatewayとRESTを進める。
 	void _process(double p_delta) override;
 	// Node解放時に通信を片付ける。
-	~DiscordWireInternal();
+	~GDDiscordWireInternal();
 };
 
 // Gateway signalとRESTの短いAPIを持つ公開client。
-class DiscordClient : public RefCounted {
-	GDCLASS(DiscordClient, RefCounted);
+class GDDiscordClient : public RefCounted {
+	GDCLASS(GDDiscordClient, RefCounted);
 
-	DiscordWireInternal *wire = nullptr; // SceneTree上の通信処理Node
+	GDDiscordWireInternal *wire = nullptr; // SceneTree上の通信処理Node
 
 	// HTTP method名をGodot enumへ直す。
 	static bool method_of(const String &p_name, HTTPClient::Method &r_method);
@@ -202,8 +202,8 @@ class DiscordClient : public RefCounted {
 	// 通信失敗をsignalへ流す。
 	void accept_failed(const String &p_message);
 
-	friend class DiscordWireInternal;
-	friend class Discord;
+	friend class GDDiscordWireInternal;
+	friend class GDDiscord;
 
 protected:
 	// Discord clientの公開methodとsignalを登録する。
@@ -235,12 +235,12 @@ public:
 	// 現Gateway session IDを返す。
 	String get_session_id() const;
 	// client解放時に内部Nodeを片付ける。
-	~DiscordClient();
+	~GDDiscordClient();
 };
 
 // Discord clientの生成口とintent定数を大域Singletonへまとめる。
-class Discord : public Object {
-	GDCLASS(Discord, Object);
+class GDDiscord : public Object {
+	GDCLASS(GDDiscord, Object);
 
 public:
 	// Discord Gateway intentの主要bit。
@@ -262,9 +262,9 @@ protected:
 
 public:
 	// 設定済みBot clientを作る。
-	Ref<DiscordClient> bot(const String &p_token, const Dictionary &p_opts = Dictionary());
+	Ref<GDDiscordClient> bot(const String &p_token, const Dictionary &p_opts = Dictionary());
 };
 
 } // namespace godot
 
-VARIANT_ENUM_CAST(godot::Discord::Intent);
+VARIANT_ENUM_CAST(godot::GDDiscord::Intent);

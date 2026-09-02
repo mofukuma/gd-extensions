@@ -135,12 +135,12 @@ uint64_t wait_of(double p_seconds) {
 } // namespace
 
 // 遅延失敗をSignalへ流す。
-void DiscordCallInternal::fail_later(const Dictionary &p_reply) {
+void GDDiscordCallInternal::fail_later(const Dictionary &p_reply) {
 	call_deferred("_finish", p_reply);
 }
 
 // 自己参照とclientを保持してREST要求を設定する。
-void DiscordCallInternal::begin(const Ref<DiscordCallInternal> &p_self, const Ref<DiscordClient> &p_client,
+void GDDiscordCallInternal::begin(const Ref<GDDiscordCallInternal> &p_self, const Ref<GDDiscordClient> &p_client,
 		HTTPClient::Method p_method, const String &p_path, const String &p_route, const String &p_body) {
 	self_hold = p_self;
 	client = p_client;
@@ -151,25 +151,25 @@ void DiscordCallInternal::begin(const Ref<DiscordCallInternal> &p_self, const Re
 }
 
 // 結果を通知して保持参照を片付ける。
-void DiscordCallInternal::finish(const Dictionary &p_reply) {
+void GDDiscordCallInternal::finish(const Dictionary &p_reply) {
 	emit_signal("finished", p_reply);
 	client.unref();
 	self_hold.unref();
 }
 
 // 内部CallのmethodとSignalを登録する。
-void DiscordCallInternal::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("_finish", "reply"), &DiscordCallInternal::finish);
+void GDDiscordCallInternal::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("_finish", "reply"), &GDDiscordCallInternal::finish);
 	ADD_SIGNAL(MethodInfo("finished", PropertyInfo(Variant::DICTIONARY, "reply")));
 }
 
 // ticks_msecを短く得る。
-uint64_t DiscordWireInternal::now_msec() {
+uint64_t GDDiscordWireInternal::now_msec() {
 	return Time::get_singleton()->get_ticks_msec();
 }
 
 // HTTP response headerを小文字Dictionaryへ直す。
-Dictionary DiscordWireInternal::header_map(const PackedStringArray &p_headers) {
+Dictionary GDDiscordWireInternal::header_map(const PackedStringArray &p_headers) {
 	Dictionary out;
 	for (const String &line : p_headers) {
 		const int at = line.find(":");
@@ -181,7 +181,7 @@ Dictionary DiscordWireInternal::header_map(const PackedStringArray &p_headers) {
 }
 
 // JSON文字列をVariantへ直し、壊れていれば元文字列を返す。
-Variant DiscordWireInternal::json_value(const String &p_text) {
+Variant GDDiscordWireInternal::json_value(const String &p_text) {
 	if (p_text.is_empty()) {
 		return Variant();
 	}
@@ -191,7 +191,7 @@ Variant DiscordWireInternal::json_value(const String &p_text) {
 }
 
 // Gateway URLへversionとencodingを補う。
-String DiscordWireInternal::gateway_endpoint(const String &p_url) {
+String GDDiscordWireInternal::gateway_endpoint(const String &p_url) {
 	String out = p_url.strip_edges();
 	const int scheme = out.find("://");
 	const int host_at = scheme < 0 ? 0 : scheme + 3;
@@ -211,14 +211,14 @@ String DiscordWireInternal::gateway_endpoint(const String &p_url) {
 }
 
 // 平文通信を許せるlocalhost URLか判断する。
-bool DiscordWireInternal::local_url(const String &p_url, const String &p_scheme) {
+bool GDDiscordWireInternal::local_url(const String &p_url, const String &p_scheme) {
 	String host;
 	String port;
 	return url_host(p_url, p_scheme, host, port) && (host == "localhost" || host == "127.0.0.1" || host == "[::1]");
 }
 
 // tokenを送れるGateway URLか判断する。
-bool DiscordWireInternal::safe_gateway_url(const String &p_url) {
+bool GDDiscordWireInternal::safe_gateway_url(const String &p_url) {
 	if (local_url(p_url, "ws://") || local_url(p_url, "wss://")) {
 		return true;
 	}
@@ -231,37 +231,37 @@ bool DiscordWireInternal::safe_gateway_url(const String &p_url) {
 }
 
 // 自動再接続しないclose codeか判断する。
-bool DiscordWireInternal::fatal_close(int p_code) {
+bool GDDiscordWireInternal::fatal_close(int p_code) {
 	return p_code == 4004 || p_code == 4010 || p_code == 4011 || p_code == 4012 || p_code == 4013 || p_code == 4014;
 }
 
 // REST queueの次要求を始める。
-void DiscordWireInternal::start_rest(uint64_t p_now) {
+void GDDiscordWireInternal::start_rest(uint64_t p_now) {
 	if (http || rest_queue.empty() || p_now < rest_check_at) {
 		return;
 	}
-	Ref<DiscordCallInternal> call = rest_queue.front();
+	Ref<GDDiscordCallInternal> call = rest_queue.front();
 	if (rest_job == 0) {
-		rest_job = RestStore::take_async(token_key, call->route, major_of(call->path), invalid_limit);
+		rest_job = GDDiscordRestStore::take_async(token_key, call->route, major_of(call->path), invalid_limit);
 		if (rest_job > 0) {
 			return;
 		}
 	}
-	RestStore::Gate gate;
-	if (rest_job > 0 && !RestStore::poll(rest_job, gate)) {
+	GDDiscordRestStore::Gate gate;
+	if (rest_job > 0 && !GDDiscordRestStore::poll(rest_job, gate)) {
 		return;
 	}
 	rest_job = 0;
-	if (gate.result == RestStore::WAIT) {
+	if (gate.result == GDDiscordRestStore::WAIT) {
 		rest_check_at = p_now + MAX(uint64_t(1), gate.wait_ms);
 		return;
 	}
-	if (gate.result == RestStore::GRANTED && !RestStore::fresh(gate)) {
-		RestStore::release_async(gate.permit);
+	if (gate.result == GDDiscordRestStore::GRANTED && !GDDiscordRestStore::fresh(gate)) {
+		GDDiscordRestStore::release_async(gate.permit);
 		return;
 	}
 	rest_queue.pop_front();
-	if (gate.result == RestStore::FAILED) {
+	if (gate.result == GDDiscordRestStore::FAILED) {
 		rest_queue_bytes -= MIN(rest_queue_bytes, size_t(call->body.to_utf8_buffer().size()));
 		call->finish(reply_of(false, 0, Variant(), "REST rate database failed"));
 		return;
@@ -286,9 +286,9 @@ void DiscordWireInternal::start_rest(uint64_t p_now) {
 	}
 	const Error err = http->request(api_url + rest_active->path, headers, rest_active->method, rest_active->body);
 	if (err != OK) {
-		Ref<DiscordCallInternal> call = rest_active;
+		Ref<GDDiscordCallInternal> call = rest_active;
 		rest_active.unref();
-		RestStore::release_async(call->permit);
+		GDDiscordRestStore::release_async(call->permit);
 		rest_queue_bytes -= MIN(rest_queue_bytes, size_t(call->body.to_utf8_buffer().size()));
 		clear_http();
 		call->finish(reply_of(false, 0, Variant(), vformat("request could not start: %d", err)));
@@ -296,7 +296,7 @@ void DiscordWireInternal::start_rest(uint64_t p_now) {
 }
 
 // HTTPRequest完了をrate limitへ反映してCallへ返す。
-void DiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
+void GDDiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
 	if (rest_active.is_null()) {
 		clear_http();
 		return;
@@ -322,7 +322,7 @@ void DiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const Pa
 	}
 	const bool network_ok = p_result == HTTPRequest::RESULT_SUCCESS;
 	const bool invalid = network_ok && (p_status == 401 || p_status == 403 || (p_status == 429 && scope != "shared"));
-	RestStore::sync_async(token_key, rest_active->route, major_of(rest_active->path), bucket, wait_ms, global,
+	GDDiscordRestStore::sync_async(token_key, rest_active->route, major_of(rest_active->path), bucket, wait_ms, global,
 			rest_active->permit, invalid);
 	if (p_result == HTTPRequest::RESULT_SUCCESS && p_status == 429) {
 		if (rest_active->retries < REST_RETRY_MAX) {
@@ -336,7 +336,7 @@ void DiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const Pa
 
 	const bool ok = network_ok && p_status >= 200 && p_status < 300;
 	const String error = ok ? String() : error_text(data, network_ok ? vformat("HTTP %d", p_status) : vformat("network error %d", p_result));
-	Ref<DiscordCallInternal> call = rest_active;
+	Ref<GDDiscordCallInternal> call = rest_active;
 	rest_active.unref();
 	rest_queue_bytes -= MIN(rest_queue_bytes, size_t(call->body.to_utf8_buffer().size()));
 	clear_http();
@@ -348,7 +348,7 @@ void DiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const Pa
 	if (p_status == 401) {
 		drop_socket(4004, "authorization failed");
 		while (!rest_queue.empty()) {
-			Ref<DiscordCallInternal> denied = rest_queue.front();
+			Ref<GDDiscordCallInternal> denied = rest_queue.front();
 			rest_queue.pop_front();
 			rest_queue_bytes -= MIN(rest_queue_bytes, size_t(denied->body.to_utf8_buffer().size()));
 			denied->finish(reply_of(false, 401, Variant(), "authorization failed"));
@@ -357,7 +357,7 @@ void DiscordWireInternal::http_done(int64_t p_result, int64_t p_status, const Pa
 }
 
 // 現HTTPRequestだけを片付ける。
-void DiscordWireInternal::clear_http() {
+void GDDiscordWireInternal::clear_http() {
 	if (http) {
 		http->queue_free();
 		http = nullptr;
@@ -365,7 +365,7 @@ void DiscordWireInternal::clear_http() {
 }
 
 // GatewayへJSON payloadを直送する。
-Error DiscordWireInternal::send_payload(int p_op, const Variant &p_data) {
+Error GDDiscordWireInternal::send_payload(int p_op, const Variant &p_data) {
 	if (socket.is_null() || socket->get_ready_state() != WebSocketPeer::STATE_OPEN) {
 		return ERR_UNAVAILABLE;
 	}
@@ -380,7 +380,7 @@ Error DiscordWireInternal::send_payload(int p_op, const Variant &p_data) {
 }
 
 // IdentifyかResumeをHello後に送る。
-void DiscordWireInternal::identify(uint64_t p_now) {
+void GDDiscordWireInternal::identify(uint64_t p_now) {
 	if (resume_next && !session_id.is_empty()) {
 		Dictionary data;
 		data["token"] = token;
@@ -397,19 +397,19 @@ void DiscordWireInternal::identify(uint64_t p_now) {
 	if (p_now < identify_at) {
 		return;
 	}
-	const IdentifyStore::Gate gate = IdentifyStore::take(token_key);
-	if (gate.result == IdentifyStore::REFRESH) {
+	const GDDiscordIdentifyStore::Gate gate = GDDiscordIdentifyStore::take(token_key);
+	if (gate.result == GDDiscordIdentifyStore::REFRESH) {
 		drop_socket(4000, "identify budget refresh");
 		load_gateway();
 		return;
 	}
-	if (gate.result == IdentifyStore::FAILED) {
+	if (gate.result == GDDiscordIdentifyStore::FAILED) {
 		owner->accept_failed("gateway identify database failed");
 		started = false;
 		drop_socket(4000, "identify database");
 		return;
 	}
-	if (gate.result == IdentifyStore::WAIT) {
+	if (gate.result == GDDiscordIdentifyStore::WAIT) {
 		identify_at = p_now + MAX(uint64_t(1), gate.wait_ms);
 		if (gate.wait_ms <= 5000) {
 			return;
@@ -437,7 +437,7 @@ void DiscordWireInternal::identify(uint64_t p_now) {
 }
 
 // heartbeatを直ちに送る。
-void DiscordWireInternal::heartbeat(uint64_t p_now) {
+void GDDiscordWireInternal::heartbeat(uint64_t p_now) {
 	if (send_payload(1, sequence < 0 ? Variant() : Variant(sequence)) == OK) {
 		heartbeat_ack = false;
 		heartbeat_sent = p_now;
@@ -446,7 +446,7 @@ void DiscordWireInternal::heartbeat(uint64_t p_now) {
 }
 
 // Gateway payloadを解釈して状態とsignalへ反映する。
-void DiscordWireInternal::receive_payload(const Dictionary &p_payload, uint64_t p_now) {
+void GDDiscordWireInternal::receive_payload(const Dictionary &p_payload, uint64_t p_now) {
 	const int op = p_payload.get("op", -1);
 	const Variant data = p_payload.get("d", Variant());
 	const Variant seq = p_payload.get("s", Variant());
@@ -523,7 +523,7 @@ void DiscordWireInternal::receive_payload(const Dictionary &p_payload, uint64_t 
 }
 
 // 到着済みGateway packetを上限内で読む。
-void DiscordWireInternal::receive_gateway(uint64_t p_now) {
+void GDDiscordWireInternal::receive_gateway(uint64_t p_now) {
 	int frame_bytes = 0;
 	for (int i = 0; i < GATEWAY_EVENT_MAX && started && socket.is_valid() && (!gateway_pending.is_empty() || socket->get_available_packet_count() > 0); i++) {
 		PackedByteArray packet;
@@ -561,7 +561,7 @@ void DiscordWireInternal::receive_gateway(uint64_t p_now) {
 }
 
 // 次の接続をbackoff付きで予約する。
-void DiscordWireInternal::schedule_reconnect(bool p_resume, int p_delay_ms) {
+void GDDiscordWireInternal::schedule_reconnect(bool p_resume, int p_delay_ms) {
 	if (!started) {
 		return;
 	}
@@ -576,7 +576,7 @@ void DiscordWireInternal::schedule_reconnect(bool p_resume, int p_delay_ms) {
 }
 
 // 接続中のWebSocketを閉じる。
-void DiscordWireInternal::drop_socket(int p_code, const String &p_reason) {
+void GDDiscordWireInternal::drop_socket(int p_code, const String &p_reason) {
 	if (socket.is_valid() && socket->get_ready_state() != WebSocketPeer::STATE_CLOSED) {
 		socket->close(p_code, p_reason);
 		socket->poll();
@@ -590,7 +590,7 @@ void DiscordWireInternal::drop_socket(int p_code, const String &p_reason) {
 }
 
 // 予約時刻になったGatewayへ接続する。
-void DiscordWireInternal::connect_gateway() {
+void GDDiscordWireInternal::connect_gateway() {
 	const String endpoint = gateway_endpoint(resume_next && !resume_url.is_empty() ? resume_url : gateway_url);
 	socket.instantiate();
 	socket->set_inbound_buffer_size(max_gateway_packet * 2);
@@ -608,7 +608,7 @@ void DiscordWireInternal::connect_gateway() {
 }
 
 // Gatewayの接続、heartbeat、受信、presenceを進める。
-void DiscordWireInternal::process_gateway(uint64_t p_now) {
+void GDDiscordWireInternal::process_gateway(uint64_t p_now) {
 	if (!started || gateway_loading || gateway_url.is_empty()) {
 		return;
 	}
@@ -671,7 +671,7 @@ void DiscordWireInternal::process_gateway(uint64_t p_now) {
 }
 
 // 最新presenceを固有制限内で送る。
-void DiscordWireInternal::drain_presence(uint64_t p_now) {
+void GDDiscordWireInternal::drain_presence(uint64_t p_now) {
 	if (!ready || presence_pending.is_empty()) {
 		return;
 	}
@@ -691,13 +691,13 @@ void DiscordWireInternal::drain_presence(uint64_t p_now) {
 }
 
 // HTTP callbackとGateway開始callbackを登録する。
-void DiscordWireInternal::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("_http_done", "result", "status", "headers", "body"), &DiscordWireInternal::http_done);
-	ClassDB::bind_method(D_METHOD("_gateway_info", "reply"), &DiscordWireInternal::gateway_info);
+void GDDiscordWireInternal::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("_http_done", "result", "status", "headers", "body"), &GDDiscordWireInternal::http_done);
+	ClassDB::bind_method(D_METHOD("_gateway_info", "reply"), &GDDiscordWireInternal::gateway_info);
 }
 
 // Gateway Bot APIから接続先と公式残数を取得する。
-void DiscordWireInternal::load_gateway() {
+void GDDiscordWireInternal::load_gateway() {
 	if (!started || gateway_loading) {
 		return;
 	}
@@ -707,7 +707,7 @@ void DiscordWireInternal::load_gateway() {
 }
 
 // Gateway Bot APIのURLとIdentify枠を受け取る。
-void DiscordWireInternal::gateway_info(const Dictionary &p_reply) {
+void GDDiscordWireInternal::gateway_info(const Dictionary &p_reply) {
 	gateway_loading = false;
 	if (!started) {
 		return;
@@ -729,7 +729,7 @@ void DiscordWireInternal::gateway_info(const Dictionary &p_reply) {
 	}
 	gateway_url = url;
 	const int safe_limit = MIN(identify_limit, total - 1);
-	if (!IdentifyStore::sync(token_key, remaining, uint64_t(reset_ms), safe_limit)) {
+	if (!GDDiscordIdentifyStore::sync(token_key, remaining, uint64_t(reset_ms), safe_limit)) {
 		started = false;
 		owner->accept_failed("gateway identify database failed");
 		return;
@@ -738,7 +738,7 @@ void DiscordWireInternal::gateway_info(const Dictionary &p_reply) {
 }
 
 // token、endpoint、資源上限を設定する。
-bool DiscordWireInternal::setup(DiscordClient *p_owner, const String &p_token, const Dictionary &p_opts) {
+bool GDDiscordWireInternal::setup(GDDiscordClient *p_owner, const String &p_token, const Dictionary &p_opts) {
 	owner = p_owner;
 	token = p_token;
 	intents = p_opts.get("intents", 0);
@@ -766,7 +766,7 @@ bool DiscordWireInternal::setup(DiscordClient *p_owner, const String &p_token, c
 }
 
 // Gateway接続と自動再接続を始める。
-Error DiscordWireInternal::start() {
+Error GDDiscordWireInternal::start() {
 	if (started) {
 		return ERR_ALREADY_IN_USE;
 	}
@@ -777,7 +777,7 @@ Error DiscordWireInternal::start() {
 }
 
 // 最新presenceを送信待ちへ置く。
-Error DiscordWireInternal::set_presence(const Dictionary &p_data) {
+Error GDDiscordWireInternal::set_presence(const Dictionary &p_data) {
 	const Variant since = p_data.get("since", Variant());
 	const Variant activities = p_data.get("activities", Variant());
 	const Variant afk = p_data.get("afk", Variant());
@@ -799,7 +799,7 @@ Error DiscordWireInternal::set_presence(const Dictionary &p_data) {
 }
 
 // REST要求をqueueへ追加する。
-bool DiscordWireInternal::enqueue(const Ref<DiscordCallInternal> &p_call) {
+bool GDDiscordWireInternal::enqueue(const Ref<GDDiscordCallInternal> &p_call) {
 	const size_t body_bytes = p_call->body.to_utf8_buffer().size();
 	if (!authorized || rest_queue.size() + (rest_active.is_valid() ? 1 : 0) >= size_t(max_rest_queue) || body_bytes > max_queue_bytes - rest_queue_bytes) {
 		return false;
@@ -810,16 +810,16 @@ bool DiscordWireInternal::enqueue(const Ref<DiscordCallInternal> &p_call) {
 }
 
 // Gatewayと全REST要求を閉じる。
-void DiscordWireInternal::shutdown(int p_code, const String &p_reason) {
+void GDDiscordWireInternal::shutdown(int p_code, const String &p_reason) {
 	if (closing) {
 		return;
 	}
 	closing = true;
 	started = false;
-	RestStore::cancel(rest_job);
+	GDDiscordRestStore::cancel(rest_job);
 	rest_job = 0;
 	if (rest_active.is_valid()) {
-		RestStore::sync_async(token_key, rest_active->route, major_of(rest_active->path), rest_active->bucket,
+		GDDiscordRestStore::sync_async(token_key, rest_active->route, major_of(rest_active->path), rest_active->bucket,
 				0, false, rest_active->permit, true);
 	}
 	clear_http();
@@ -848,27 +848,27 @@ void DiscordWireInternal::shutdown(int p_code, const String &p_reason) {
 }
 
 // READY済みか返す。
-bool DiscordWireInternal::is_ready() const {
+bool GDDiscordWireInternal::is_ready() const {
 	return ready;
 }
 
 // 最終heartbeat latencyを返す。
-int DiscordWireInternal::get_latency_ms() const {
+int GDDiscordWireInternal::get_latency_ms() const {
 	return latency_ms;
 }
 
 // 待ちREST要求数を返す。
-int DiscordWireInternal::pending() const {
+int GDDiscordWireInternal::pending() const {
 	return int(rest_queue.size()) + (rest_active.is_valid() ? 1 : 0);
 }
 
 // 現session IDを返す。
-String DiscordWireInternal::get_session_id() const {
+String GDDiscordWireInternal::get_session_id() const {
 	return session_id;
 }
 
 // 毎frame GatewayとRESTを進める。
-void DiscordWireInternal::_process(double p_delta) {
+void GDDiscordWireInternal::_process(double p_delta) {
 	(void)p_delta;
 	const uint64_t now = now_msec();
 	if (closing) {
@@ -883,7 +883,7 @@ void DiscordWireInternal::_process(double p_delta) {
 		queue_free();
 		return;
 	}
-	const Ref<DiscordClient> keep = owner ? Ref<DiscordClient>(Variant(owner)) : Ref<DiscordClient>();
+	const Ref<GDDiscordClient> keep = owner ? Ref<GDDiscordClient>(Variant(owner)) : Ref<GDDiscordClient>();
 	if (keep.is_null()) {
 		return;
 	}
@@ -892,12 +892,12 @@ void DiscordWireInternal::_process(double p_delta) {
 }
 
 // Node解放時に通信を片付ける。
-DiscordWireInternal::~DiscordWireInternal() {
+GDDiscordWireInternal::~GDDiscordWireInternal() {
 	shutdown();
 }
 
 // HTTP method名をGodot enumへ直す。
-bool DiscordClient::method_of(const String &p_name, HTTPClient::Method &r_method) {
+bool GDDiscordClient::method_of(const String &p_name, HTTPClient::Method &r_method) {
 	const String name = p_name.to_upper();
 	if (name == "GET") {
 		r_method = HTTPClient::METHOD_GET;
@@ -916,7 +916,7 @@ bool DiscordClient::method_of(const String &p_name, HTTPClient::Method &r_method
 }
 
 // Discord snowflakeとして安全な数字か確かめる。
-bool DiscordClient::snowflake_ok(const String &p_id) {
+bool GDDiscordClient::snowflake_ok(const String &p_id) {
 	if (p_id.is_empty() || p_id.length() > 32) {
 		return false;
 	}
@@ -929,7 +929,7 @@ bool DiscordClient::snowflake_ok(const String &p_id) {
 }
 
 // rate limit用にpath中の非主要snowflakeを正規化する。
-String DiscordClient::route_of(HTTPClient::Method p_method, const String &p_path) {
+String GDDiscordClient::route_of(HTTPClient::Method p_method, const String &p_path) {
 	const String clean = p_path.get_slice("?", 0);
 	const PackedStringArray parts = clean.split("/", false);
 	PackedStringArray route;
@@ -962,10 +962,10 @@ String DiscordClient::route_of(HTTPClient::Method p_method, const String &p_path
 }
 
 // REST callを作り、queueまたは遅延失敗を返す。
-Signal DiscordClient::rest(HTTPClient::Method p_method, const String &p_path, const Variant &p_body) {
-	Ref<DiscordCallInternal> call;
+Signal GDDiscordClient::rest(HTTPClient::Method p_method, const String &p_path, const Variant &p_body) {
+	Ref<GDDiscordCallInternal> call;
 	call.instantiate();
-	const Ref<DiscordClient> client = Variant(this);
+	const Ref<GDDiscordClient> client = Variant(this);
 	const String body = p_body.get_type() == Variant::NIL ? String() : JSON::stringify(p_body);
 	call->begin(call, client, p_method, p_path, route_of(p_method, p_path), body);
 	const bool path_ok = p_path.begins_with("/") && !p_path.begins_with("//") && p_path.length() <= 2048 &&
@@ -979,32 +979,32 @@ Signal DiscordClient::rest(HTTPClient::Method p_method, const String &p_path, co
 }
 
 // Gateway Readyをsignalへ流す。
-void DiscordClient::accept_ready(const Dictionary &p_data) {
+void GDDiscordClient::accept_ready(const Dictionary &p_data) {
 	emit_signal("ready", p_data);
 }
 
 // Gateway dispatchをsignalへ流す。
-void DiscordClient::accept_event(const String &p_name, const Variant &p_data) {
+void GDDiscordClient::accept_event(const String &p_name, const Variant &p_data) {
 	emit_signal("event", p_name, p_data);
 }
 
 // Gateway Resumeをsignalへ流す。
-void DiscordClient::accept_resumed() {
+void GDDiscordClient::accept_resumed() {
 	emit_signal("resumed");
 }
 
 // Gateway切断をsignalへ流す。
-void DiscordClient::accept_disconnected(int p_code, const String &p_reason) {
+void GDDiscordClient::accept_disconnected(int p_code, const String &p_reason) {
 	emit_signal("disconnected", p_code, p_reason);
 }
 
 // 通信失敗をsignalへ流す。
-void DiscordClient::accept_failed(const String &p_message) {
+void GDDiscordClient::accept_failed(const String &p_message) {
 	emit_signal("failed", p_message);
 }
 
 // tokenと設定から内部通信Nodeを作る。
-bool DiscordClient::setup(const String &p_token, const Dictionary &p_opts) {
+bool GDDiscordClient::setup(const String &p_token, const Dictionary &p_opts) {
 	SceneTree *tree = Object::cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
 	const Variant root_value = tree ? tree->call("get_root") : Variant();
 	Object *root_object = root_value.get_type() == Variant::OBJECT ? root_value : nullptr;
@@ -1012,7 +1012,7 @@ bool DiscordClient::setup(const String &p_token, const Dictionary &p_opts) {
 	if (!root) {
 		return false;
 	}
-	wire = memnew(DiscordWireInternal);
+	wire = memnew(GDDiscordWireInternal);
 	if (!wire->setup(this, p_token, p_opts)) {
 		memdelete(wire);
 		wire = nullptr;
@@ -1023,13 +1023,13 @@ bool DiscordClient::setup(const String &p_token, const Dictionary &p_opts) {
 }
 
 // Gateway接続を始める。
-Error DiscordClient::start() {
+Error GDDiscordClient::start() {
 	return wire ? wire->start() : ERR_UNAVAILABLE;
 }
 
 // Gateway接続とREST待ちを閉じる。
-void DiscordClient::close(int p_code, const String &p_reason) {
-	DiscordWireInternal *closing = wire;
+void GDDiscordClient::close(int p_code, const String &p_reason) {
+	GDDiscordWireInternal *closing = wire;
 	wire = nullptr;
 	if (closing) {
 		closing->shutdown(p_code, p_reason);
@@ -1037,17 +1037,17 @@ void DiscordClient::close(int p_code, const String &p_reason) {
 }
 
 // Botのpresenceを更新する。
-Error DiscordClient::set_presence(const Dictionary &p_data) {
+Error GDDiscordClient::set_presence(const Dictionary &p_data) {
 	return wire ? wire->set_presence(p_data) : ERR_UNAVAILABLE;
 }
 
 // 任意のDiscord REST endpointを呼ぶ。
-Signal DiscordClient::request(const String &p_method, const String &p_path, const Variant &p_body) {
+Signal GDDiscordClient::request(const String &p_method, const String &p_path, const Variant &p_body) {
 	HTTPClient::Method method;
 	if (!method_of(p_method, method)) {
-		Ref<DiscordCallInternal> call;
+		Ref<GDDiscordCallInternal> call;
 		call.instantiate();
-		const Ref<DiscordClient> client = Variant(this);
+		const Ref<GDDiscordClient> client = Variant(this);
 		call->begin(call, client, HTTPClient::METHOD_GET, String(), String(), String());
 		call->fail_later(reply_of(false, 0, Variant(), "unsupported HTTP method"));
 		return Signal(call.ptr(), "finished");
@@ -1056,7 +1056,7 @@ Signal DiscordClient::request(const String &p_method, const String &p_path, cons
 }
 
 // channelへmessageを送る。
-Signal DiscordClient::send_message(const String &p_channel_id, const Variant &p_message) {
+Signal GDDiscordClient::send_message(const String &p_channel_id, const Variant &p_message) {
 	if (!snowflake_ok(p_channel_id)) {
 		return rest(HTTPClient::METHOD_POST, String(), Variant());
 	}
@@ -1064,7 +1064,7 @@ Signal DiscordClient::send_message(const String &p_channel_id, const Variant &p_
 }
 
 // 既存messageを更新する。
-Signal DiscordClient::edit_message(const String &p_channel_id, const String &p_message_id, const Variant &p_message) {
+Signal GDDiscordClient::edit_message(const String &p_channel_id, const String &p_message_id, const Variant &p_message) {
 	if (!snowflake_ok(p_channel_id) || !snowflake_ok(p_message_id)) {
 		return rest(HTTPClient::METHOD_PATCH, String(), Variant());
 	}
@@ -1072,7 +1072,7 @@ Signal DiscordClient::edit_message(const String &p_channel_id, const String &p_m
 }
 
 // 既存messageを削除する。
-Signal DiscordClient::delete_message(const String &p_channel_id, const String &p_message_id) {
+Signal GDDiscordClient::delete_message(const String &p_channel_id, const String &p_message_id) {
 	if (!snowflake_ok(p_channel_id) || !snowflake_ok(p_message_id)) {
 		return rest(HTTPClient::METHOD_DELETE, String(), Variant());
 	}
@@ -1080,43 +1080,43 @@ Signal DiscordClient::delete_message(const String &p_channel_id, const String &p
 }
 
 // READY済みか返す。
-bool DiscordClient::is_ready() const {
+bool GDDiscordClient::is_ready() const {
 	return wire && wire->is_ready();
 }
 
 // heartbeat latencyを返す。
-int DiscordClient::get_latency_ms() const {
+int GDDiscordClient::get_latency_ms() const {
 	return wire ? wire->get_latency_ms() : -1;
 }
 
 // 待ちREST要求数を返す。
-int DiscordClient::pending() const {
+int GDDiscordClient::pending() const {
 	return wire ? wire->pending() : 0;
 }
 
 // 現Gateway session IDを返す。
-String DiscordClient::get_session_id() const {
+String GDDiscordClient::get_session_id() const {
 	return wire ? wire->get_session_id() : String();
 }
 
 // client解放時に内部Nodeを片付ける。
-DiscordClient::~DiscordClient() {
+GDDiscordClient::~GDDiscordClient() {
 	close();
 }
 
 // Discord clientの公開methodとsignalを登録する。
-void DiscordClient::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("start"), &DiscordClient::start);
-	ClassDB::bind_method(D_METHOD("close", "code", "reason"), &DiscordClient::close, DEFVAL(1000), DEFVAL(String()));
-	ClassDB::bind_method(D_METHOD("set_presence", "data"), &DiscordClient::set_presence);
-	ClassDB::bind_method(D_METHOD("request", "method", "path", "body"), &DiscordClient::request, DEFVAL(Variant()));
-	ClassDB::bind_method(D_METHOD("send_message", "channel_id", "message"), &DiscordClient::send_message);
-	ClassDB::bind_method(D_METHOD("edit_message", "channel_id", "message_id", "message"), &DiscordClient::edit_message);
-	ClassDB::bind_method(D_METHOD("delete_message", "channel_id", "message_id"), &DiscordClient::delete_message);
-	ClassDB::bind_method(D_METHOD("is_ready"), &DiscordClient::is_ready);
-	ClassDB::bind_method(D_METHOD("get_latency_ms"), &DiscordClient::get_latency_ms);
-	ClassDB::bind_method(D_METHOD("pending"), &DiscordClient::pending);
-	ClassDB::bind_method(D_METHOD("get_session_id"), &DiscordClient::get_session_id);
+void GDDiscordClient::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("start"), &GDDiscordClient::start);
+	ClassDB::bind_method(D_METHOD("close", "code", "reason"), &GDDiscordClient::close, DEFVAL(1000), DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("set_presence", "data"), &GDDiscordClient::set_presence);
+	ClassDB::bind_method(D_METHOD("request", "method", "path", "body"), &GDDiscordClient::request, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("send_message", "channel_id", "message"), &GDDiscordClient::send_message);
+	ClassDB::bind_method(D_METHOD("edit_message", "channel_id", "message_id", "message"), &GDDiscordClient::edit_message);
+	ClassDB::bind_method(D_METHOD("delete_message", "channel_id", "message_id"), &GDDiscordClient::delete_message);
+	ClassDB::bind_method(D_METHOD("is_ready"), &GDDiscordClient::is_ready);
+	ClassDB::bind_method(D_METHOD("get_latency_ms"), &GDDiscordClient::get_latency_ms);
+	ClassDB::bind_method(D_METHOD("pending"), &GDDiscordClient::pending);
+	ClassDB::bind_method(D_METHOD("get_session_id"), &GDDiscordClient::get_session_id);
 	ADD_SIGNAL(MethodInfo("ready", PropertyInfo(Variant::DICTIONARY, "data")));
 	ADD_SIGNAL(MethodInfo("event", PropertyInfo(Variant::STRING, "name"), PropertyInfo(Variant::NIL, "data")));
 	ADD_SIGNAL(MethodInfo("resumed"));
@@ -1125,15 +1125,15 @@ void DiscordClient::_bind_methods() {
 }
 
 // 設定済みBot clientを作る。
-Ref<DiscordClient> Discord::bot(const String &p_token, const Dictionary &p_opts) {
-	Ref<DiscordClient> client;
+Ref<GDDiscordClient> GDDiscord::bot(const String &p_token, const Dictionary &p_opts) {
+	Ref<GDDiscordClient> client;
 	client.instantiate();
-	return client->setup(p_token, p_opts) ? client : Ref<DiscordClient>();
+	return client->setup(p_token, p_opts) ? client : Ref<GDDiscordClient>();
 }
 
 // Discord Singletonのfactoryと定数を登録する。
-void Discord::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("bot", "token", "options"), &Discord::bot, DEFVAL(Dictionary()));
+void GDDiscord::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("bot", "token", "options"), &GDDiscord::bot, DEFVAL(Dictionary()));
 	BIND_ENUM_CONSTANT(GUILDS);
 	BIND_ENUM_CONSTANT(GUILD_MEMBERS);
 	BIND_ENUM_CONSTANT(GUILD_MODERATION);

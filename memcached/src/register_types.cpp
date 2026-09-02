@@ -15,19 +15,19 @@
 
 using namespace godot;
 
-static Memcached *memcached_api = nullptr; // 公開Singletonの実体
+static GDMemcached *memcached_api = nullptr; // 公開Singletonの実体
 
 // MemcachedのclassとSingletonを登録する。
 void initialize_memcached_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	GDREGISTER_INTERNAL_CLASS(MemcachedCallInternal);
-	GDREGISTER_INTERNAL_CLASS(MemcachedWireInternal);
-	GDREGISTER_CLASS(MemcachedClient);
-	GDREGISTER_CLASS(Memcached);
-	memcached_api = memnew(Memcached);
-	Engine::get_singleton()->register_singleton("Memcached", memcached_api);
+	GDREGISTER_INTERNAL_CLASS(GDMemcachedCallInternal);
+	GDREGISTER_INTERNAL_CLASS(GDMemcachedWireInternal);
+	GDREGISTER_CLASS(GDMemcachedClient);
+	GDREGISTER_CLASS(GDMemcached);
+	memcached_api = memnew(GDMemcached);
+	Engine::get_singleton()->register_singleton("GDMemcached", memcached_api);
 }
 
 // MemcachedのSingletonを外してclassを解放可能にする。
@@ -35,7 +35,7 @@ void uninitialize_memcached_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	Engine::get_singleton()->unregister_singleton("Memcached");
+	Engine::get_singleton()->unregister_singleton("GDMemcached");
 	memdelete(memcached_api);
 	memcached_api = nullptr;
 }

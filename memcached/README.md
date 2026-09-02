@@ -1,9 +1,9 @@
 # Memcached GDExtension
 
-Memcachedのcache操作をgdと本家Godotから使う。公開名は`Memcached`と`MemcachedClient`で、clientの型名は通常書かない。
+Memcachedのcache操作をgdと本家Godotから使う。公開名は`GDMemcached`と`GDMemcachedClient`で、clientの型名は通常書かない。
 
 ```gdscript
-var cache := Memcached.client("127.0.0.1", 11211, {"prefix": "blog:"})
+var cache := GDMemcached.client("127.0.0.1", 11211, {"prefix": "blog:"})
 
 func load_post(id):
 	var res := await cache.get("post:%s" % id)

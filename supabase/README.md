@@ -1,9 +1,9 @@
 # Supabase GDExtension
 
-SupabaseのDatabaseとAuthをgdから使う。公開名は`Supabase`と`SupabaseClient`で、clientの型名は通常書かない。
+SupabaseのDatabaseとAuthをgdから使う。公開名は`GDSupabase`と`GDSupabaseClient`で、clientの型名は通常書かない。
 
 ```gdscript
-var sb := Supabase.client(
+var sb := GDSupabase.client(
 	GD.cli.env("SUPABASE_URL"),
 	GD.cli.env("SUPABASE_PUBLISHABLE_KEY"),
 )
@@ -37,7 +37,7 @@ projectへ`supabase.gdextension`と`bin/`を置き、通常はextension一覧か
 
 ```gdscript
 GDExtensionManager.load_extension("res://supabase.gdextension")
-var api := Engine.get_singleton("Supabase")
+var api := Engine.get_singleton("GDSupabase")
 var sb := api.client(url, key)
 ```
 

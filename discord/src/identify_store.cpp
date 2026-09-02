@@ -203,22 +203,22 @@ int64_t wall_ms() {
 }
 
 // transactionを失敗として閉じる。
-IdentifyStore::Gate fail(Db &p_db) {
+GDDiscordIdentifyStore::Gate fail(Db &p_db) {
 	p_db.exec("ROLLBACK;");
 	return {};
 }
 
 // REST判定を失敗としてtransactionを閉じる。
-RestStore::Gate rest_fail(Db &p_db) {
+GDDiscordRestStore::Gate rest_fail(Db &p_db) {
 	p_db.exec("ROLLBACK;");
 	return {};
 }
 
 // RESTを待機としてtransactionを閉じる。
-RestStore::Gate rest_wait(Db &p_db, int64_t p_now, int64_t p_until) {
+GDDiscordRestStore::Gate rest_wait(Db &p_db, int64_t p_now, int64_t p_until) {
 	p_db.exec("ROLLBACK;");
-	RestStore::Gate out;
-	out.result = RestStore::WAIT;
+	GDDiscordRestStore::Gate out;
+	out.result = GDDiscordRestStore::WAIT;
 	out.wait_ms = uint64_t(MAX(int64_t(1), p_until - p_now));
 	return out;
 }
@@ -226,7 +226,7 @@ RestStore::Gate rest_wait(Db &p_db, int64_t p_now, int64_t p_until) {
 } // namespace
 
 // Gateway Bot APIの公式残数とrolling上限を共有DBへ反映する。
-bool IdentifyStore::sync(const String &p_token, int p_remaining, uint64_t p_reset_ms, int p_limit) {
+bool GDDiscordIdentifyStore::sync(const String &p_token, int p_remaining, uint64_t p_reset_ms, int p_limit) {
 	Db db;
 	if (!db.open() || !db.exec("BEGIN IMMEDIATE;")) {
 		return false;
@@ -268,7 +268,7 @@ bool IdentifyStore::sync(const String &p_token, int p_remaining, uint64_t p_rese
 }
 
 // 上限内ならIdentify 1件を原子的に記録する。
-IdentifyStore::Gate IdentifyStore::take(const String &p_token) {
+GDDiscordIdentifyStore::Gate GDDiscordIdentifyStore::take(const String &p_token) {
 	Db db;
 	if (!db.open() || !db.exec("BEGIN IMMEDIATE;")) {
 		return {};
@@ -350,7 +350,7 @@ IdentifyStore::Gate IdentifyStore::take(const String &p_token) {
 }
 
 // invalid、global、route bucketの上限内ならREST 1件を原子的に予約する。
-RestStore::Gate rest_take(const String &p_token, const String &p_route, const String &p_major, int p_invalid_limit) {
+GDDiscordRestStore::Gate rest_take(const String &p_token, const String &p_route, const String &p_major, int p_invalid_limit) {
 	Db db;
 	if (!db.open(false, REST_SQLITE_WAIT) || !db.exec("BEGIN IMMEDIATE;")) {
 		return {};
@@ -448,8 +448,8 @@ RestStore::Gate rest_take(const String &p_token, const String &p_route, const St
 	if (!db.exec("COMMIT;")) {
 		return rest_fail(db);
 	}
-	RestStore::Gate out;
-	out.result = RestStore::GRANTED;
+	GDDiscordRestStore::Gate out;
+	out.result = GDDiscordRestStore::GRANTED;
 	out.grant_until = uint64_t(now + REST_GRANT_MS);
 	out.permit = permit;
 	out.bucket = bucket;
@@ -546,7 +546,7 @@ class RestWorker {
 	std::mutex mutex; // mainとworker間のqueue保護
 	std::condition_variable wake; // 新しいjobまたは終了を通知する
 	std::deque<RestJob> jobs; // 受付順のSQLite job
-	std::unordered_map<uint64_t, RestStore::Gate> results; // mainが未取得の判定結果
+	std::unordered_map<uint64_t, GDDiscordRestStore::Gate> results; // mainが未取得の判定結果
 	std::unordered_set<uint64_t> pending; // worker処理前または処理中のID
 	std::unordered_set<uint64_t> cancelled; // 完了後も結果を保持しないID
 	std::unordered_set<std::string> blocked; // 応答更新に失敗したtoken
@@ -599,14 +599,14 @@ class RestWorker {
 				}
 				continue;
 			}
-			RestStore::Gate gate;
+			GDDiscordRestStore::Gate gate;
 			bool denied = false;
 			{
 				std::lock_guard<std::mutex> lock(mutex);
 				denied = blocked.find(key_of(job.token)) != blocked.end();
 			}
 			if (denied) {
-				gate.result = RestStore::FAILED;
+				gate.result = GDDiscordRestStore::FAILED;
 			} else {
 				gate = rest_take(job.token, job.route, job.major, job.invalid_limit);
 			}
@@ -620,7 +620,7 @@ class RestWorker {
 					results.insert_or_assign(job.id, gate);
 				}
 			}
-			if (discard && gate.result == RestStore::GRANTED) {
+			if (discard && gate.result == GDDiscordRestStore::GRANTED) {
 				const int db_wait = stopping.load() ? 1 : REST_SQLITE_WAIT;
 				rest_sync(String(), String(), String(), String(), 0, false, gate.permit, false, db_wait);
 			}
@@ -668,7 +668,7 @@ public:
 	}
 
 	// 完了済みTAKE結果を1件取り出す。
-	bool poll(uint64_t p_id, RestStore::Gate &r_gate) {
+	bool poll(uint64_t p_id, GDDiscordRestStore::Gate &r_gate) {
 		std::lock_guard<std::mutex> lock(mutex);
 		const auto found = results.find(p_id);
 		if (found == results.end()) {
@@ -680,7 +680,7 @@ public:
 	}
 
 	// permit以降に新しい制限応答を受けていないか返す。
-	bool fresh(const RestStore::Gate &p_gate) {
+	bool fresh(const GDDiscordRestStore::Gate &p_gate) {
 		std::lock_guard<std::mutex> lock(mutex);
 		return epoch == p_gate.epoch;
 	}
@@ -733,29 +733,29 @@ RestWorker &rest_worker() {
 } // namespace
 
 // REST送信前のSQLite判定をworkerへ予約する。
-uint64_t RestStore::take_async(const String &p_token, const String &p_route, const String &p_major, int p_invalid_limit) {
+uint64_t GDDiscordRestStore::take_async(const String &p_token, const String &p_route, const String &p_major, int p_invalid_limit) {
 	return rest_worker().take(p_token, p_route.sha256_text(), p_major.sha256_text(), p_invalid_limit);
 }
 
 // workerの判定が終わっていれば結果を受け取る。
-bool RestStore::poll(uint64_t p_job, Gate &r_gate) {
+bool GDDiscordRestStore::poll(uint64_t p_job, Gate &r_gate) {
 	return rest_worker().poll(p_job, r_gate);
 }
 
 // workerが確保した送信枠がまだ新鮮か返す。
-bool RestStore::fresh(const Gate &p_gate) {
+bool GDDiscordRestStore::fresh(const Gate &p_gate) {
 	return p_gate.result == GRANTED && uint64_t(wall_ms()) <= p_gate.grant_until && rest_worker().fresh(p_gate);
 }
 
 // 不要になった判定を破棄する。
-void RestStore::cancel(uint64_t p_job) {
+void GDDiscordRestStore::cancel(uint64_t p_job) {
 	if (p_job > 0) {
 		rest_worker().cancel(p_job);
 	}
 }
 
 // Discord応答のbucketと再開までの時間をworkerから反映する。
-void RestStore::sync_async(const String &p_token, const String &p_route, const String &p_major, const String &p_bucket,
+void GDDiscordRestStore::sync_async(const String &p_token, const String &p_route, const String &p_major, const String &p_bucket,
 		uint64_t p_wait_ms, bool p_global, uint64_t p_permit, bool p_invalid) {
 	RestJob job;
 	job.type = RestJob::SYNC;
@@ -771,14 +771,14 @@ void RestStore::sync_async(const String &p_token, const String &p_route, const S
 }
 
 // 送信前に失効したinvalid応答枠を解放する。
-void RestStore::release_async(uint64_t p_permit) {
+void GDDiscordRestStore::release_async(uint64_t p_permit) {
 	if (p_permit > 0) {
 		sync_async(String(), String(), String(), String(), 0, false, p_permit, false);
 	}
 }
 
 // GDExtension解放前にworkerを安全に終了する。
-void RestStore::shutdown() {
+void GDDiscordRestStore::shutdown() {
 	rest_worker().stop();
 }
 

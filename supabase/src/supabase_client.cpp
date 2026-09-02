@@ -53,7 +53,7 @@ static bool is_legacy_secret(const String &p_key) {
 }
 
 // HTTP完了値を利用側のDictionaryへ揃える。
-void SupabaseCallInternal::completed(int64_t p_result, int64_t p_status, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
+void GDSupabaseCallInternal::completed(int64_t p_result, int64_t p_status, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
 	const bool network_ok = p_result == HTTPRequest::RESULT_SUCCESS;
 	const bool ok = network_ok && p_status >= 200 && p_status < 300;
 	String text;
@@ -88,7 +88,7 @@ void SupabaseCallInternal::completed(int64_t p_result, int64_t p_status, const P
 }
 
 // 開始前の失敗を次frameでSignalへ流す。
-void SupabaseCallInternal::failed(int64_t p_error) {
+void GDSupabaseCallInternal::failed(int64_t p_error) {
 	Dictionary reply;
 	reply["ok"] = false;
 	reply["status"] = 0;
@@ -99,7 +99,7 @@ void SupabaseCallInternal::failed(int64_t p_error) {
 }
 
 // 結果を通知し、通信Nodeと自己参照を片付ける。
-void SupabaseCallInternal::finish(const Dictionary &p_reply) {
+void GDSupabaseCallInternal::finish(const Dictionary &p_reply) {
 	emit_signal("finished", p_reply);
 	if (request_node) {
 		request_node->queue_free();
@@ -110,7 +110,7 @@ void SupabaseCallInternal::finish(const Dictionary &p_reply) {
 }
 
 // HTTPRequestをSceneTreeへ載せて通信を始める。
-void SupabaseCallInternal::start(const Ref<SupabaseCallInternal> &p_self, const Ref<SupabaseClient> &p_client,
+void GDSupabaseCallInternal::start(const Ref<GDSupabaseCallInternal> &p_self, const Ref<GDSupabaseClient> &p_client,
 		const String &p_url, HTTPClient::Method p_method, const PackedStringArray &p_headers,
 		const String &p_body, Action p_action) {
 	self_hold = p_self;
@@ -135,14 +135,14 @@ void SupabaseCallInternal::start(const Ref<SupabaseCallInternal> &p_self, const 
 }
 
 // 通信CallのmethodとSignalを登録する。
-void SupabaseCallInternal::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("_completed", "result", "status", "headers", "body"), &SupabaseCallInternal::completed);
-	ClassDB::bind_method(D_METHOD("_failed", "error"), &SupabaseCallInternal::failed);
+void GDSupabaseCallInternal::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("_completed", "result", "status", "headers", "body"), &GDSupabaseCallInternal::completed);
+	ClassDB::bind_method(D_METHOD("_failed", "error"), &GDSupabaseCallInternal::failed);
 	ADD_SIGNAL(MethodInfo("finished", PropertyInfo(Variant::DICTIONARY, "reply")));
 }
 
 // table、function、schemaへ使えるASCII識別子か調べる。
-bool SupabaseClient::safe_name(const String &p_name) {
+bool GDSupabaseClient::safe_name(const String &p_name) {
 	if (p_name.is_empty()) {
 		return false;
 	}
@@ -156,7 +156,7 @@ bool SupabaseClient::safe_name(const String &p_name) {
 }
 
 // query値をpercent encodeしてURLへ繋ぐ。
-String SupabaseClient::query_text(const Dictionary &p_query) {
+String GDSupabaseClient::query_text(const Dictionary &p_query) {
 	PackedStringArray parts;
 	for (const Variant &raw_key : p_query.keys()) {
 		const String key = raw_key;
@@ -167,7 +167,7 @@ String SupabaseClient::query_text(const Dictionary &p_query) {
 }
 
 // 共通認証とschemaの見出しを組む。
-PackedStringArray SupabaseClient::headers(bool p_json, bool p_mutation, bool p_rest, const PackedStringArray &p_more) const {
+PackedStringArray GDSupabaseClient::headers(bool p_json, bool p_mutation, bool p_rest, const PackedStringArray &p_more) const {
 	PackedStringArray out;
 	out.push_back("apikey: " + api_key);
 	out.push_back("Accept: application/json");
@@ -195,33 +195,33 @@ PackedStringArray SupabaseClient::headers(bool p_json, bool p_mutation, bool p_r
 }
 
 // REST tableのURLを安全な名前から組む。
-String SupabaseClient::table_url(const String &p_table, const Dictionary &p_query) const {
+String GDSupabaseClient::table_url(const String &p_table, const Dictionary &p_query) const {
 	ERR_FAIL_COND_V_MSG(!safe_name(p_table), String(), "table must be an ASCII identifier");
 	return base_url + String("/rest/v1/") + p_table + query_text(p_query);
 }
 
 // HTTP Callを作り、待てるSignalを返す。
-Signal SupabaseClient::send(const String &p_url, HTTPClient::Method p_method, const String &p_body,
-		const PackedStringArray &p_more, SupabaseCallInternal::Action p_action, bool p_rest) {
-	Ref<SupabaseCallInternal> call;
+Signal GDSupabaseClient::send(const String &p_url, HTTPClient::Method p_method, const String &p_body,
+		const PackedStringArray &p_more, GDSupabaseCallInternal::Action p_action, bool p_rest) {
+	Ref<GDSupabaseCallInternal> call;
 	call.instantiate();
-	const Ref<SupabaseClient> owner = Variant(this);
+	const Ref<GDSupabaseClient> owner = Variant(this);
 	call->start(call, owner, p_url, p_method, headers(!p_body.is_empty(), p_method != HTTPClient::METHOD_GET, p_rest, p_more), p_body, p_action);
 	return Signal(call.ptr(), "finished");
 }
 
 // Auth成功時に新しいsessionを控える。
-void SupabaseClient::accept_session(const Dictionary &p_session) {
+void GDSupabaseClient::accept_session(const Dictionary &p_session) {
 	auth_session = p_session;
 }
 
 // sign out成功時にsessionを空にする。
-void SupabaseClient::clear_session() {
+void GDSupabaseClient::clear_session() {
 	auth_session.clear();
 }
 
 // project URL、key、schema等を設定する。
-void SupabaseClient::setup(const String &p_url, const String &p_key, const Dictionary &p_opts) {
+void GDSupabaseClient::setup(const String &p_url, const String &p_key, const Dictionary &p_opts) {
 	base_url = p_url.trim_suffix("/");
 	api_key = p_key;
 	schema = p_opts.get("schema", "public");
@@ -229,102 +229,102 @@ void SupabaseClient::setup(const String &p_url, const String &p_key, const Dicti
 }
 
 // tableから行を選ぶ。
-Signal SupabaseClient::select(const String &p_table, const Dictionary &p_query) {
+Signal GDSupabaseClient::select(const String &p_table, const Dictionary &p_query) {
 	Dictionary query = p_query.duplicate();
 	if (!query.has("select")) {
 		query["select"] = "*";
 	}
-	return send(table_url(p_table, query), HTTPClient::METHOD_GET, String(), PackedStringArray(), SupabaseCallInternal::ACTION_NONE);
+	return send(table_url(p_table, query), HTTPClient::METHOD_GET, String(), PackedStringArray(), GDSupabaseCallInternal::ACTION_NONE);
 }
 
 // tableへ行を追加する。
-Signal SupabaseClient::insert(const String &p_table, const Variant &p_rows, bool p_upsert) {
+Signal GDSupabaseClient::insert(const String &p_table, const Variant &p_rows, bool p_upsert) {
 	PackedStringArray more;
 	more.push_back(String("Prefer: return=representation") + (p_upsert ? ",resolution=merge-duplicates" : ""));
-	return send(table_url(p_table, Dictionary()), HTTPClient::METHOD_POST, JSON::stringify(p_rows), more, SupabaseCallInternal::ACTION_NONE);
+	return send(table_url(p_table, Dictionary()), HTTPClient::METHOD_POST, JSON::stringify(p_rows), more, GDSupabaseCallInternal::ACTION_NONE);
 }
 
 // filterに合う行を更新する。
-Signal SupabaseClient::update(const String &p_table, const Dictionary &p_values, const Dictionary &p_filters) {
+Signal GDSupabaseClient::update(const String &p_table, const Dictionary &p_values, const Dictionary &p_filters) {
 	PackedStringArray more;
 	more.push_back("Prefer: return=representation");
-	return send(table_url(p_table, p_filters), HTTPClient::METHOD_PATCH, JSON::stringify(p_values), more, SupabaseCallInternal::ACTION_NONE);
+	return send(table_url(p_table, p_filters), HTTPClient::METHOD_PATCH, JSON::stringify(p_values), more, GDSupabaseCallInternal::ACTION_NONE);
 }
 
 // filterに合う行を削除する。
-Signal SupabaseClient::remove(const String &p_table, const Dictionary &p_filters) {
+Signal GDSupabaseClient::remove(const String &p_table, const Dictionary &p_filters) {
 	PackedStringArray more;
 	more.push_back("Prefer: return=representation");
-	return send(table_url(p_table, p_filters), HTTPClient::METHOD_DELETE, String(), more, SupabaseCallInternal::ACTION_NONE);
+	return send(table_url(p_table, p_filters), HTTPClient::METHOD_DELETE, String(), more, GDSupabaseCallInternal::ACTION_NONE);
 }
 
 // PostgreSQL functionを呼ぶ。
-Signal SupabaseClient::rpc(const String &p_function, const Dictionary &p_args) {
+Signal GDSupabaseClient::rpc(const String &p_function, const Dictionary &p_args) {
 	ERR_FAIL_COND_V_MSG(!safe_name(p_function), Signal(), "function must be an ASCII identifier");
-	return send(base_url + "/rest/v1/rpc/" + p_function, HTTPClient::METHOD_POST, JSON::stringify(p_args), PackedStringArray(), SupabaseCallInternal::ACTION_NONE);
+	return send(base_url + "/rest/v1/rpc/" + p_function, HTTPClient::METHOD_POST, JSON::stringify(p_args), PackedStringArray(), GDSupabaseCallInternal::ACTION_NONE);
 }
 
 // emailとpasswordでAuth sessionを得る。
-Signal SupabaseClient::sign_in(const String &p_email, const String &p_password) {
+Signal GDSupabaseClient::sign_in(const String &p_email, const String &p_password) {
 	Dictionary body;
 	body["email"] = p_email;
 	body["password"] = p_password;
-	return send(base_url + "/auth/v1/token?grant_type=password", HTTPClient::METHOD_POST, JSON::stringify(body), PackedStringArray(), SupabaseCallInternal::ACTION_SESSION, false);
+	return send(base_url + "/auth/v1/token?grant_type=password", HTTPClient::METHOD_POST, JSON::stringify(body), PackedStringArray(), GDSupabaseCallInternal::ACTION_SESSION, false);
 }
 
 // projectの公開Auth設定を得る。
-Signal SupabaseClient::auth_settings() {
-	return send(base_url + "/auth/v1/settings", HTTPClient::METHOD_GET, String(), PackedStringArray(), SupabaseCallInternal::ACTION_NONE, false);
+Signal GDSupabaseClient::auth_settings() {
+	return send(base_url + "/auth/v1/settings", HTTPClient::METHOD_GET, String(), PackedStringArray(), GDSupabaseCallInternal::ACTION_NONE, false);
 }
 
 // refresh tokenでAuth sessionを更新する。
-Signal SupabaseClient::refresh(const String &p_refresh_token) {
+Signal GDSupabaseClient::refresh(const String &p_refresh_token) {
 	const String token = p_refresh_token.is_empty() ? String(auth_session.get("refresh_token", "")) : p_refresh_token;
 	Dictionary body;
 	body["refresh_token"] = token;
-	return send(base_url + "/auth/v1/token?grant_type=refresh_token", HTTPClient::METHOD_POST, JSON::stringify(body), PackedStringArray(), SupabaseCallInternal::ACTION_SESSION, false);
+	return send(base_url + "/auth/v1/token?grant_type=refresh_token", HTTPClient::METHOD_POST, JSON::stringify(body), PackedStringArray(), GDSupabaseCallInternal::ACTION_SESSION, false);
 }
 
 // server側のsessionを無効化する。
-Signal SupabaseClient::sign_out() {
-	return send(base_url + "/auth/v1/logout", HTTPClient::METHOD_POST, "{}", PackedStringArray(), SupabaseCallInternal::ACTION_SIGN_OUT, false);
+Signal GDSupabaseClient::sign_out() {
+	return send(base_url + "/auth/v1/logout", HTTPClient::METHOD_POST, "{}", PackedStringArray(), GDSupabaseCallInternal::ACTION_SIGN_OUT, false);
 }
 
 // 外から渡されたsessionを現在値にする。
-void SupabaseClient::set_session(const Dictionary &p_session) {
+void GDSupabaseClient::set_session(const Dictionary &p_session) {
 	auth_session = p_session;
 }
 
 // 現在のsessionを返す。
-Dictionary SupabaseClient::get_session() const {
+Dictionary GDSupabaseClient::get_session() const {
 	return auth_session.duplicate();
 }
 
 // projectの基準URLを返す。
-String SupabaseClient::get_url() const {
+String GDSupabaseClient::get_url() const {
 	return base_url;
 }
 
 // Supabase clientの公開methodを登録する。
-void SupabaseClient::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("select", "table", "query"), &SupabaseClient::select, DEFVAL(Dictionary()));
-	ClassDB::bind_method(D_METHOD("insert", "table", "rows", "upsert"), &SupabaseClient::insert, DEFVAL(false));
-	ClassDB::bind_method(D_METHOD("update", "table", "values", "filters"), &SupabaseClient::update);
-	ClassDB::bind_method(D_METHOD("remove", "table", "filters"), &SupabaseClient::remove);
-	ClassDB::bind_method(D_METHOD("rpc", "function", "args"), &SupabaseClient::rpc, DEFVAL(Dictionary()));
-	ClassDB::bind_method(D_METHOD("sign_in", "email", "password"), &SupabaseClient::sign_in);
-	ClassDB::bind_method(D_METHOD("auth_settings"), &SupabaseClient::auth_settings);
-	ClassDB::bind_method(D_METHOD("refresh", "refresh_token"), &SupabaseClient::refresh, DEFVAL(String()));
-	ClassDB::bind_method(D_METHOD("sign_out"), &SupabaseClient::sign_out);
-	ClassDB::bind_method(D_METHOD("set_session", "session"), &SupabaseClient::set_session);
-	ClassDB::bind_method(D_METHOD("get_session"), &SupabaseClient::get_session);
-	ClassDB::bind_method(D_METHOD("get_url"), &SupabaseClient::get_url);
+void GDSupabaseClient::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("select", "table", "query"), &GDSupabaseClient::select, DEFVAL(Dictionary()));
+	ClassDB::bind_method(D_METHOD("insert", "table", "rows", "upsert"), &GDSupabaseClient::insert, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("update", "table", "values", "filters"), &GDSupabaseClient::update);
+	ClassDB::bind_method(D_METHOD("remove", "table", "filters"), &GDSupabaseClient::remove);
+	ClassDB::bind_method(D_METHOD("rpc", "function", "args"), &GDSupabaseClient::rpc, DEFVAL(Dictionary()));
+	ClassDB::bind_method(D_METHOD("sign_in", "email", "password"), &GDSupabaseClient::sign_in);
+	ClassDB::bind_method(D_METHOD("auth_settings"), &GDSupabaseClient::auth_settings);
+	ClassDB::bind_method(D_METHOD("refresh", "refresh_token"), &GDSupabaseClient::refresh, DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("sign_out"), &GDSupabaseClient::sign_out);
+	ClassDB::bind_method(D_METHOD("set_session", "session"), &GDSupabaseClient::set_session);
+	ClassDB::bind_method(D_METHOD("get_session"), &GDSupabaseClient::get_session);
+	ClassDB::bind_method(D_METHOD("get_url"), &GDSupabaseClient::get_url);
 	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "session"), "set_session", "get_session");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "url"), "", "get_url");
 }
 
 // 設定済みclientを作る。
-Ref<SupabaseClient> Supabase::client(const String &p_url, const String &p_key, const Dictionary &p_opts) {
+Ref<GDSupabaseClient> GDSupabase::client(const String &p_url, const String &p_key, const Dictionary &p_opts) {
 	const String url = p_url.trim_suffix("/");
 	const bool https = url.begins_with("https://");
 	const bool http = url.begins_with("http://");
@@ -332,20 +332,20 @@ Ref<SupabaseClient> Supabase::client(const String &p_url, const String &p_key, c
 	const bool local = http && (authority == "127.0.0.1" || authority.begins_with("127.0.0.1:") || authority == "localhost" || authority.begins_with("localhost:"));
 	const bool clean = !authority.is_empty() && !authority.contains("@") && !url.contains("?") && !url.contains("#") &&
 			url == String(https ? "https://" : "http://") + authority;
-	ERR_FAIL_COND_V_MSG((!https && !local) || !clean, Ref<SupabaseClient>(), "Supabase URL must be an HTTPS origin or localhost");
-	ERR_FAIL_COND_V_MSG(p_key.is_empty(), Ref<SupabaseClient>(), "Supabase publishable key is required");
-	ERR_FAIL_COND_V_MSG(p_key.begins_with("sb_secret_") || is_legacy_secret(p_key), Ref<SupabaseClient>(), "Do not use a Supabase secret key in this client");
+	ERR_FAIL_COND_V_MSG((!https && !local) || !clean, Ref<GDSupabaseClient>(), "Supabase URL must be an HTTPS origin or localhost");
+	ERR_FAIL_COND_V_MSG(p_key.is_empty(), Ref<GDSupabaseClient>(), "Supabase publishable key is required");
+	ERR_FAIL_COND_V_MSG(p_key.begins_with("sb_secret_") || is_legacy_secret(p_key), Ref<GDSupabaseClient>(), "Do not use a Supabase secret key in this client");
 	const String schema = p_opts.get("schema", "public");
-	ERR_FAIL_COND_V_MSG(!SupabaseClient::safe_name(schema), Ref<SupabaseClient>(), "schema must be an ASCII identifier");
-	Ref<SupabaseClient> out;
+	ERR_FAIL_COND_V_MSG(!GDSupabaseClient::safe_name(schema), Ref<GDSupabaseClient>(), "schema must be an ASCII identifier");
+	Ref<GDSupabaseClient> out;
 	out.instantiate();
 	out->setup(url, p_key, p_opts);
 	return out;
 }
 
 // Supabase Singletonのfactoryを登録する。
-void Supabase::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("client", "url", "publishable_key", "opts"), &Supabase::client, DEFVAL(Dictionary()));
+void GDSupabase::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("client", "url", "publishable_key", "opts"), &GDSupabase::client, DEFVAL(Dictionary()));
 }
 
 } // namespace godot

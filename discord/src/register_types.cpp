@@ -16,19 +16,19 @@
 
 using namespace godot;
 
-static Discord *discord_api = nullptr; // 公開Singletonの実体
+static GDDiscord *discord_api = nullptr; // 公開Singletonの実体
 
 // DiscordのclassとSingletonを登録する。
 void initialize_discord_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	GDREGISTER_INTERNAL_CLASS(DiscordCallInternal);
-	GDREGISTER_INTERNAL_CLASS(DiscordWireInternal);
-	GDREGISTER_CLASS(DiscordClient);
-	GDREGISTER_CLASS(Discord);
-	discord_api = memnew(Discord);
-	Engine::get_singleton()->register_singleton("Discord", discord_api);
+	GDREGISTER_INTERNAL_CLASS(GDDiscordCallInternal);
+	GDREGISTER_INTERNAL_CLASS(GDDiscordWireInternal);
+	GDREGISTER_CLASS(GDDiscordClient);
+	GDREGISTER_CLASS(GDDiscord);
+	discord_api = memnew(GDDiscord);
+	Engine::get_singleton()->register_singleton("GDDiscord", discord_api);
 }
 
 // DiscordのSingletonを外してclassを解放可能にする。
@@ -36,10 +36,10 @@ void uninitialize_discord_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	Engine::get_singleton()->unregister_singleton("Discord");
+	Engine::get_singleton()->unregister_singleton("GDDiscord");
 	memdelete(discord_api);
 	discord_api = nullptr;
-	RestStore::shutdown();
+	GDDiscordRestStore::shutdown();
 }
 
 // engineから呼ばれるGDExtension初期化入口。

@@ -17,14 +17,14 @@ windows.release.x86_64 = "res://bin/libgddiscord.windows.template_release.x86_64
 
 [classes]
 ; gdの型推論とcompileが追跡するclass。
-DiscordCallInternal = ""
-DiscordWireInternal = "Node"
-DiscordClient = ""
-Discord = ""
+GDDiscordCallInternal = ""
+GDDiscordWireInternal = "Node"
+GDDiscordClient = ""
+GDDiscord = ""
 
 [await]
 ; 非同期REST methodをawaitした後の型。
-DiscordClient.request = "Dictionary"
-DiscordClient.send_message = "Dictionary"
-DiscordClient.edit_message = "Dictionary"
-DiscordClient.delete_message = "Dictionary"
+GDDiscordClient.request = "Dictionary"
+GDDiscordClient.send_message = "Dictionary"
+GDDiscordClient.edit_message = "Dictionary"
+GDDiscordClient.delete_message = "Dictionary"

@@ -17,21 +17,21 @@ windows.release.x86_64 = "res://bin/libgdmemcached.windows.template_release.x86_
 
 [classes]
 ; gdの型推論とcompileが追跡するclass。
-MemcachedCallInternal = ""
-MemcachedWireInternal = ""
-MemcachedClient = ""
-Memcached = ""
+GDMemcachedCallInternal = ""
+GDMemcachedWireInternal = ""
+GDMemcachedClient = ""
+GDMemcached = ""
 
 [await]
 ; 非同期methodをawaitした後の型。
-MemcachedClient.get = "Dictionary"
-MemcachedClient.get_many = "Dictionary"
-MemcachedClient.set = "Dictionary"
-MemcachedClient.set_raw = "Dictionary"
-MemcachedClient.add = "Dictionary"
-MemcachedClient.replace = "Dictionary"
-MemcachedClient.remove = "Dictionary"
-MemcachedClient.touch = "Dictionary"
-MemcachedClient.increment = "Dictionary"
-MemcachedClient.decrement = "Dictionary"
-MemcachedClient.version = "Dictionary"
+GDMemcachedClient.get = "Dictionary"
+GDMemcachedClient.get_many = "Dictionary"
+GDMemcachedClient.set = "Dictionary"
+GDMemcachedClient.set_raw = "Dictionary"
+GDMemcachedClient.add = "Dictionary"
+GDMemcachedClient.replace = "Dictionary"
+GDMemcachedClient.remove = "Dictionary"
+GDMemcachedClient.touch = "Dictionary"
+GDMemcachedClient.increment = "Dictionary"
+GDMemcachedClient.decrement = "Dictionary"
+GDMemcachedClient.version = "Dictionary"

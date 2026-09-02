@@ -21,6 +21,26 @@ run_limited() {
 	perl -e '$limit = shift; alarm $limit; exec @ARGV or exit 127' "$LIMIT" "$@"
 }
 
+# 一つの拡張を隔離した利用者領域で起動し、失敗時も診断結果を残す。
+run_test() {
+	local name=$1
+	local checks=$2
+	local project="tmp/${name}_ext_test"
+	local user_dir="$PWD/tmp/${name}_ext_home"
+	local output
+	local code
+	rm -rf "$user_dir"
+	mkdir -p "$user_dir"
+	set +e
+	output=$(HOME="$user_dir" run_limited "$GODOT" --headless --path "$project" --script res://late_test.gd 2>&1)
+	code=$?
+	set -e
+	printf '%s\n' "$output"
+	test "$code" -eq 0
+	rg -q "^checks=${checks} failures=0$" <<<"$output"
+	! rg -q 'SCRIPT ERROR|^ERROR:' <<<"$output"
+}
+
 # manifestとlibraryを試験projectへ置く。
 prepare() {
 	local name=$1
@@ -39,23 +59,14 @@ prepare() {
 # Discordは実行中load、Gateway、REST、unloadをまとめて確かめる。
 prepare discord
 mv tmp/discord_ext_test/.godot/extension_list.cfg tmp/discord_ext_test/extension_list.disabled
-DISCORD_OUT=$(run_limited "$GODOT" --headless --path tmp/discord_ext_test --script res://late_test.gd 2>&1)
-printf '%s\n' "$DISCORD_OUT"
-rg -q '^checks=58 failures=0$' <<<"$DISCORD_OUT"
-! rg -q 'SCRIPT ERROR|^ERROR:' <<<"$DISCORD_OUT"
+run_test discord 58
 
 # Memcachedはlocal fake serverとの通信とunloadを確かめる。
 prepare memcached
 mv tmp/memcached_ext_test/.godot/extension_list.cfg tmp/memcached_ext_test/extension_list.disabled
-MEMCACHED_OUT=$(run_limited "$GODOT" --headless --path tmp/memcached_ext_test --script res://late_test.gd 2>&1)
-printf '%s\n' "$MEMCACHED_OUT"
-rg -q '^checks=31 failures=0$' <<<"$MEMCACHED_OUT"
-! rg -q 'SCRIPT ERROR|^ERROR:' <<<"$MEMCACHED_OUT"
+run_test memcached 31
 
 # Supabaseはlocal fake serverへDatabaseとAuthの要求を送る。
 prepare supabase
 mv tmp/supabase_ext_test/.godot/extension_list.cfg tmp/supabase_ext_test/extension_list.disabled
-SUPABASE_OUT=$(run_limited "$GODOT" --headless --path tmp/supabase_ext_test --script res://late_test.gd 2>&1)
-printf '%s\n' "$SUPABASE_OUT"
-rg -q '^checks=21 failures=0$' <<<"$SUPABASE_OUT"
-! rg -q 'SCRIPT ERROR|^ERROR:' <<<"$SUPABASE_OUT"
+run_test supabase 21

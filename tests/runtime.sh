@@ -37,8 +37,8 @@ run_test() {
 	set -e
 	printf '%s\n' "$output"
 	test "$code" -eq 0
-	rg -q "^checks=${checks} failures=0$" <<<"$output"
-	! rg -q 'SCRIPT ERROR|^ERROR:' <<<"$output"
+	grep -q "^checks=${checks} failures=0$" <<<"$output"
+	! grep -Eq 'SCRIPT ERROR|^ERROR:' <<<"$output"
 }
 
 # manifestとlibraryを試験projectへ置く。

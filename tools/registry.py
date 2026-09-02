@@ -26,13 +26,13 @@ def mark(path: Path) -> dict[str, object]:
 # JSONをkey順の安定した形で保存する。
 def write_json(path: Path, data: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+    path.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
 # 一つのpackage版を配置し、既存metaへ追加する。
 def package(source: Path, artifacts: Path, site: Path, name: str, version: str) -> Path:
     src = source / "extensions" / name
-    config = json.loads((src / "gd.json").read_text())
+    config = json.loads((src / "gd.json").read_text(encoding="utf-8"))
     if config.get("name") != f"@mofukuma/{name}" or config.get("version") != version:
         raise ValueError(f"{name}: gd.json and release version differ")
     target = site / "@mofukuma" / name
@@ -53,7 +53,7 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
         files[f"bin/{library.name}"] = mark(library)
     entry = {**mark(src / manifest_name), "files": files}
     meta_path = target / "meta.json"
-    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {"versions": {}}
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {"versions": {}}
     old = meta["versions"].get(version)
     if old is not None and old != entry:
         raise ValueError(f"{name}@{version}: published version is immutable")
@@ -79,16 +79,19 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
 # 人が一覧を確認できる入口を作る。
 def index(source: Path, site: Path) -> None:
     rows = []
+    results = []
     for name in PACKAGES:
-        meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text())
+        meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
         rows.append(f'<li><code>gd add ext:@mofukuma/{name}@^{meta["latest"]}</code> — {meta["description"]}</li>')
+        results.append({"pkg": f"@mofukuma/{name}", "latest": meta["latest"], "description": meta["description"]})
     body = f"""<!doctype html>
 <html lang="ja"><meta charset="utf-8"><title>gd extensions</title>
 <h1>gd extensions</h1><ul>{"".join(rows)}</ul>
 <p><a href="https://github.com/mofukuma/gd-extensions">source</a></p></html>
 """
-    (site / "index.html").write_text(body)
+    (site / "index.html").write_text(body, encoding="utf-8")
     (site / ".nojekyll").touch()
+    write_json(site / "-" / "search", {"results": results})
     shutil.copy2(source / "LICENSE.txt", site / "LICENSE.txt")
     shutil.copy2(source / "NOTICE.md", site / "NOTICE.md")
 

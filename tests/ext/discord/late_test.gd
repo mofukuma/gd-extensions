@@ -208,21 +208,28 @@ func run():
 		burst.call("request", "GET", "/global/%d" % i)
 	var burst_last := Time.get_ticks_msec()
 	var burst_frame_max := 0
+	var burst_frame_ms: Array[int] = []
 	var burst_frames := 0
 	var burst_until := burst_last + 8000
 	while fake.rest_global_at.size() < 46 and Time.get_ticks_msec() < burst_until:
 		await process_frame
 		burst_frames += 1
 		var burst_now := Time.get_ticks_msec()
-		burst_frame_max = max(burst_frame_max, burst_now - burst_last)
+		var burst_frame := burst_now - burst_last
+		burst_frame_ms.append(burst_frame)
+		burst_frame_max = max(burst_frame_max, burst_frame)
 		burst_last = burst_now
 	check(fake.rest_global_at.size() == 46, "global count completed")
 	var burst_delta := fake.rest_global_at[45] - fake.rest_global_at[0] if fake.rest_global_at.size() == 46 else 0
+	burst_frame_ms.sort()
+	var burst_p95_at := maxi(0, ceili(burst_frame_ms.size() * 0.95) - 1)
+	var burst_frame_p95 := burst_frame_ms[burst_p95_at] if not burst_frame_ms.is_empty() else 8000
 	print("rest_global_delta_ms=", burst_delta)
 	print("rest_global_frame_max_ms=", burst_frame_max)
+	print("rest_global_frame_p95_ms=", burst_frame_p95)
 	check(burst_delta >= 1500, "global count shared by clients")
-	# 制限待ちの間もmain loopが十分に進み、SQLite worker待ちで停止しないことを確かめる。
-	check(burst_frames >= 10, "REST SQLite keeps main loop running")
+	# 95%を20 FPS以上、最悪時も10 FPS以上で進め、SQLite worker待ちの停止を検出する。
+	check(burst_frames >= 10 and burst_frame_p95 < 50 and burst_frame_max < 100, "REST SQLite keeps main loop running")
 	for burst in burst_clients:
 		burst.call("close")
 	var invalid: Dictionary = await wait_reply(watch(bot.call("request", "TRACE", "/bad")))

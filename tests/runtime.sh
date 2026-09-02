@@ -50,6 +50,11 @@ prepare() {
 	mkdir -p "$project/bin" "$project/.godot"
 	cp -R "tests/ext/$name/." "$project/"
 	cp "extensions/$name/${name}.gdextension" "$project/"
+	# editorでrelease libraryを実行するときはdebug選択先だけをreleaseへ向ける。
+	if [ "$TARGET" = template_release ]; then
+		sed 's/template_debug/template_release/g' "$project/${name}.gdextension" > "$project/${name}.gdextension.next"
+		mv "$project/${name}.gdextension.next" "$project/${name}.gdextension"
+	fi
 	cp "$library" "$project/bin/"
 	if [ -f "tests/ext/$name/extension_list.cfg" ]; then
 		cp "tests/ext/$name/extension_list.cfg" "$project/.godot/"

@@ -28,6 +28,13 @@ SERVER_PID=$!
 trap cleanup EXIT INT TERM
 sleep 1
 
+# 静的な全件索引も実gdが指定語で絞り込む。
+search_out=$(cd "$PROJECT" && "$GD_PATH" --allow-net=127.0.0.1:"$PORT" search discord)
+grep -q '@mofukuma/discord' <<<"$search_out"
+! grep -q '@mofukuma/memcached' <<<"$search_out"
+no_match=$(cd "$PROJECT" && "$GD_PATH" --allow-net=127.0.0.1:"$PORT" search package-that-does-not-exist)
+test "$no_match" = "no match"
+
 # 三packageを同じprojectへ取り込み、manifestと現在platformのlibrary配置を確かめる。
 for name in discord memcached supabase; do
 	(cd "$PROJECT" && "$GD_PATH" --allow-net=127.0.0.1:"$PORT" add "ext:@mofukuma/$name@$VERSION")

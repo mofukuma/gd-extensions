@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# registry branchの版追加を直列にし、tag同士のpush競合を避ける。
+concurrency:
+  group: release-registry
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
@@ -96,14 +101,17 @@ jobs:
       - name: Read private gd source with a dedicated deploy key
         env:
           GD_SOURCE_KEY: ${{ secrets.GD_SOURCE_KEY }}
+          GD_SOURCE_REV: 8effc9d8d893219bd8d97a627206ae032437bcb7 # 静的検索とRange取得を含む検証済みcore
         shell: bash
         run: |
           test -n "$GD_SOURCE_KEY"
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$GD_SOURCE_KEY" > "$HOME/.ssh/id_ed25519"
-          chmod 600 "$HOME/.ssh/id_ed25519"
-          curl --fail --silent https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
-          git clone --depth 1 git@github.com:mofukuma/gd.git tmp/gd
+          install -m 700 -d tmp/ssh
+          printf '%s\n' "$GD_SOURCE_KEY" > tmp/ssh/id_ed25519
+          chmod 600 tmp/ssh/id_ed25519
+          curl --fail --silent https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > tmp/ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $PWD/tmp/ssh/id_ed25519 -o UserKnownHostsFile=$PWD/tmp/ssh/known_hosts"
+          git clone --filter=blob:none --no-checkout git@github.com:mofukuma/gd.git tmp/gd
+          git -C tmp/gd checkout --detach "$GD_SOURCE_REV"
       - name: Build real gd package client
         run: uvx --from scons==4.10.1 scons -C tmp/gd platform=linuxbsd target=template_debug -j3
       - name: Build static registry
@@ -165,7 +173,9 @@ jobs:
           uv run --no-project tools/registry.py --source . --artifacts tmp/artifacts --site tmp/site --version "$version"
           mkdir -p tmp/dist
           for name in discord memcached supabase; do
-            (cd "tmp/site/@mofukuma/$name/$version" && zip -qr "$GITHUB_WORKSPACE/tmp/dist/$name-$version.zip" .)
+            release="tmp/site/@mofukuma/$name/$version"
+            find "$release" -exec touch -d '1980-01-01 UTC' {} +
+            (cd "$release" && find . -type f -print | LC_ALL=C sort | zip -X -q "$GITHUB_WORKSPACE/tmp/dist/$name-$version.zip" -@)
           done
           (cd tmp/dist && sha256sum *.zip > SHA256SUMS)
       - name: Save registry versions

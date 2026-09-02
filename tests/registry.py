@@ -41,7 +41,7 @@ def main() -> int:
     shutil.copy2("NOTICE.md", source / "NOTICE.md")
     for name in ("discord", "memcached", "supabase"):
         # gd package clientと同じくlibrary pathを安全な相対pathに限定する。
-        manifest_text = (source / "extensions" / name / f"{name}.gdextension").read_text()
+        manifest_text = (source / "extensions" / name / f"{name}.gdextension").read_text(encoding="utf-8")
         library_section = manifest_text.split("[libraries]", 1)[1].split("\n[", 1)[0]
         paths = re.findall(r'^\S+\s*=\s*"([^"]+)"$', library_section, re.MULTILINE)
         assert len(paths) == 6
@@ -61,12 +61,16 @@ def main() -> int:
     # 二版目のsource設定を進め、既存版を壊さず追加できるか確かめる。
     for name in ("discord", "memcached", "supabase"):
         path = source / "extensions" / name / "gd.json"
-        config = json.loads(path.read_text())
+        config = json.loads(path.read_text(encoding="utf-8"))
         config["version"] = "0.2.0"
-        path.write_text(json.dumps(config))
+        path.write_text(json.dumps(config), encoding="utf-8")
     subprocess.run(command + ["--version", "0.2.0"], check=True)
+    search = json.loads((site / "-" / "search").read_text(encoding="utf-8"))
+    assert {item["pkg"] for item in search["results"]} == {
+        "@mofukuma/discord", "@mofukuma/memcached", "@mofukuma/supabase"
+    }
     for name in ("discord", "memcached", "supabase"):
-        meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text())
+        meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
         assert set(meta["versions"]) == {"0.1.0", "0.2.0"}
         assert meta["latest"] == "0.2.0"
         manifest = site / "@mofukuma" / name / "0.2.0" / f"{name}.gdextension"

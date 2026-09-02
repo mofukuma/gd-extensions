@@ -13,6 +13,11 @@ foreach ($name in @("discord", "memcached", "supabase")) {
     Copy-Item "tests/ext/startup_smoke.gd" "$project/startup_smoke.gd"
     Copy-Item "tests/ext/$name/extension_list.cfg" "$project/.godot/extension_list.cfg"
     Copy-Item "extensions/$name/${name}.gdextension" "$project/"
+    # editorのdebug選択先をreleaseへ向け、release library自体を起動する。
+    if ($Target -eq "template_release") {
+        $manifest = "$project/${name}.gdextension"
+        (Get-Content $manifest -Raw -Encoding utf8).Replace("template_debug", "template_release") | Set-Content $manifest -Encoding utf8
+    }
     Copy-Item "tmp/${name}_ext_bin/libgd${name}.windows.${Target}.x86_64.dll" "$project/bin/"
     $env:GD_EXT_SINGLETON = "GD" + (Get-Culture).TextInfo.ToTitleCase($name)
     & $Godot --headless --path $project --script res://startup_smoke.gd

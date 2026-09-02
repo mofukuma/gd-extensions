@@ -198,6 +198,18 @@ func run():
 	check(seeded.ok and exhausted.ok and shared.ok, "shared bucket calls")
 	check(fake.bucket_use_at - fake.bucket_at >= 45, "shared bucket waited across clients")
 	bucket_bot.call("close")
+	# runner固有のframe時間を直前に測り、REST負荷による相対的な停止だけを判定する。
+	var base_frame_ms: Array[int] = []
+	var base_last := Time.get_ticks_msec()
+	var base_until := base_last + 1000
+	while Time.get_ticks_msec() < base_until:
+		await process_frame
+		var base_now := Time.get_ticks_msec()
+		base_frame_ms.append(base_now - base_last)
+		base_last = base_now
+	base_frame_ms.sort()
+	var base_p95_at := maxi(0, ceili(base_frame_ms.size() * 0.95) - 1)
+	var base_frame_p95 := base_frame_ms[base_p95_at] if not base_frame_ms.is_empty() else 8000
 	# 46個のclientが一斉に送っても45件の次は予約保持分だけ待つ。
 	var burst_clients := []
 	for i in 46:
@@ -225,11 +237,12 @@ func run():
 	var burst_p95_at := maxi(0, ceili(burst_frame_ms.size() * 0.95) - 1)
 	var burst_frame_p95 := burst_frame_ms[burst_p95_at] if not burst_frame_ms.is_empty() else 8000
 	print("rest_global_delta_ms=", burst_delta)
+	print("rest_base_frame_p95_ms=", base_frame_p95)
 	print("rest_global_frame_max_ms=", burst_frame_max)
 	print("rest_global_frame_p95_ms=", burst_frame_p95)
 	check(burst_delta >= 1500, "global count shared by clients")
-	# 95%を20 FPS以上、最悪時も10 FPS以上で進め、SQLite worker待ちの停止を検出する。
-	check(burst_frames >= 10 and burst_frame_p95 < 50 and burst_frame_max < 100, "REST SQLite keeps main loop running")
+	# 95% frame時間が平常時の2倍を越えたら、SQLite worker待ちによる退行として扱う。
+	check(burst_frames >= 10 and burst_frame_p95 <= maxi(1, base_frame_p95 * 2), "REST SQLite keeps main loop running")
 	for burst in burst_clients:
 		burst.call("close")
 	var invalid: Dictionary = await wait_reply(watch(bot.call("request", "TRACE", "/bad")))

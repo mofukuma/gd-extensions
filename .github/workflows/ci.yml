@@ -82,4 +82,4 @@ jobs:
           Invoke-WebRequest -Uri https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_win64.exe.zip -OutFile tmp/godot.zip
           if ((Get-FileHash tmp/godot.zip -Algorithm SHA256).Hash.ToLower() -ne 'c7a289051eaefb460b0106b60e9cd5bee0ef55fd102dcb2bed1eb356cf3d90a1') { throw 'Godot checksum mismatch' }
           Expand-Archive tmp/godot.zip -DestinationPath tmp/godot
-          ./tests/windows.ps1 -Godot tmp/godot/Godot_v4.7.1-stable_win64.exe
+          ./tests/windows.ps1 -Godot tmp/godot/Godot_v4.7.1-stable_win64_console.exe

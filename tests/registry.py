@@ -75,6 +75,31 @@ def main() -> int:
         failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
         assert failed != 0
         leak.unlink()
+    # native入口とartifactもlink経由で外を公開しない。
+    native_main = source / "extensions" / "memcached" / "memcached.gdextension"
+    native_real = native_main.with_suffix(".gdextension.real")
+    native_main.rename(native_real)
+    try:
+        native_main.symlink_to(native_real.name)
+    except OSError:
+        native_real.rename(native_main)
+    else:
+        failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
+        assert failed != 0
+        native_main.unlink()
+        native_real.rename(native_main)
+    artifact = artifacts / "libgdmemcached.macos.template_debug.arm64.dylib"
+    artifact_real = artifact.with_suffix(".dylib.real")
+    artifact.rename(artifact_real)
+    try:
+        artifact.symlink_to(artifact_real.name)
+    except OSError:
+        artifact_real.rename(artifact)
+    else:
+        failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
+        assert failed != 0
+        artifact.unlink()
+        artifact_real.rename(artifact)
     subprocess.run(command + ["--version", "0.1.2"], check=True)
     # 二版目のsource設定を進め、既存版を壊さず追加できるか確かめる。
     for name in packages:

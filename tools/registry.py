@@ -103,6 +103,7 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
     target = site / "@mofukuma" / name
     main = src / config.get("main", "mod.gd")
     native = main.suffix == ".gdextension"
+    no_links(src, main)
     if not main.is_file() or (not native and main.suffix != ".gd"):
         raise ValueError(f"{name}: .gd or .gdextension entry required")
     entry_name = main.name if native else "mod.gd"
@@ -120,6 +121,10 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
         if set(found) != expected:
             raise ValueError(f"{name}: six runtime libraries required, got {len(found)}")
         libraries = [found[item] for item in sorted(expected)]
+        for library in libraries:
+            no_links(artifacts, library)
+            if not library.is_file():
+                raise ValueError(f"{name}: runtime library must be a regular file: {library}")
     sources = {entry_name: main} if native else script_files(src, main, config.get("include"))
     files: dict[str, object] = {relative: mark(path) for relative, path in sources.items()}
     for library in libraries:

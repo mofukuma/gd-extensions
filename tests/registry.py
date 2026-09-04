@@ -43,6 +43,7 @@ def main() -> int:
     shutil.copy2("NOTICE.md", source / "NOTICE.md")
     # include指定した純GDScriptの相対treeも配れることをfixtureで確かめる。
     (source / "extensions" / "discord" / "src" / "helper.gd").write_text("# fixture\n", encoding="utf-8")
+    (source / "extensions" / "discord" / "src" / ".helper.gd").write_text("# dotfile fixture\n", encoding="utf-8")
     native = ("memcached", "supabase")
     packages = ("discord", "hello", *native)
     for name in native:
@@ -133,9 +134,10 @@ def main() -> int:
         entry_name = f"{name}.gdextension" if name in native else "mod.gd"
         entry = site / "@mofukuma" / name / "0.2.0" / entry_name
         assert meta["versions"]["0.2.0"]["sha256"] == hashlib.sha256(entry.read_bytes()).hexdigest()
-        expected = 7 if name in native else (2 if name == "discord" else 1)
+        expected = 7 if name in native else (3 if name == "discord" else 1)
         assert len(meta["versions"]["0.2.0"]["files"]) == expected
     assert (site / "@mofukuma" / "discord" / "0.2.0" / "helper.gd").read_text(encoding="utf-8") == "# fixture\n"
+    assert (site / "@mofukuma" / "discord" / "0.2.0" / ".helper.gd").read_text(encoding="utf-8") == "# dotfile fixture\n"
     for name in native:
         # 同じ版のbinaryを差し替える不変版上書きを拒む。
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))

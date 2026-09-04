@@ -56,10 +56,10 @@ def regular_files(root: Path, path: Path) -> list[Path]:
     found: list[Path] = []
     for base, dirs, files in os.walk(path, followlinks=False):
         current = Path(base)
-        dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+        dirs[:] = sorted(name for name in dirs if name not in {".bzr", ".git", ".hg", ".svn"})
         for name in dirs:
             no_links(root, current / name)
-        for name in sorted(name for name in files if not name.startswith(".")):
+        for name in sorted(files):
             file = current / name
             no_links(root, file)
             if not file.is_file():

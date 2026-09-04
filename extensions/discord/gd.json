@@ -1,6 +1,6 @@
 {
   "name": "@mofukuma/discord",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "discord.gdextension",
   "description": "Discord Gateway v10とRESTを使う文字Bot拡張"
 }

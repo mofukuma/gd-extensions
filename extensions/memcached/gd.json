@@ -1,6 +1,6 @@
 {
   "name": "@mofukuma/memcached",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "memcached.gdextension",
   "description": "Memcachedを非同期で使うcache client拡張"
 }

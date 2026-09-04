@@ -1,0 +1,6 @@
+{
+  "name": "@mofukuma/hello",
+  "version": "0.1.1",
+  "main": "src/hello.gd",
+  "description": "純GDScript packageの最小実例"
+}

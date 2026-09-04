@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 
 
-PACKAGES = ("discord", "memcached", "supabase")  # 配布する公式拡張名。
+PACKAGES = ("discord", "hello", "memcached", "supabase")  # 配布する公式package名。
 
 
 # fileのsizeとSHA-256を登録所形式で返す。
@@ -36,22 +36,27 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
     if config.get("name") != f"@mofukuma/{name}" or config.get("version") != version:
         raise ValueError(f"{name}: gd.json and release version differ")
     target = site / "@mofukuma" / name
-    manifest_name = f"{name}.gdextension"
-    libraries = sorted(artifacts.glob(f"**/libgd{name}.*"))
-    expected = {
-        f"libgd{name}.macos.template_debug.arm64.dylib",
-        f"libgd{name}.macos.template_release.arm64.dylib",
-        f"libgd{name}.linux.template_debug.x86_64.so",
-        f"libgd{name}.linux.template_release.x86_64.so",
-        f"libgd{name}.windows.template_debug.x86_64.dll",
-        f"libgd{name}.windows.template_release.x86_64.dll",
-    }
-    if {item.name for item in libraries} != expected:
-        raise ValueError(f"{name}: six libraries required, got {len(libraries)}")
-    files: dict[str, object] = {manifest_name: mark(src / manifest_name)}
+    main = src / config.get("main", "mod.gd")
+    native = main.suffix == ".gdextension"
+    if not main.is_file() or (not native and main.suffix != ".gd"):
+        raise ValueError(f"{name}: .gd or .gdextension entry required")
+    entry_name = main.name if native else "mod.gd"
+    libraries = sorted(artifacts.glob(f"**/libgd{name}.*")) if native else []
+    if native:
+        expected = {
+            f"libgd{name}.macos.template_debug.arm64.dylib",
+            f"libgd{name}.macos.template_release.arm64.dylib",
+            f"libgd{name}.linux.template_debug.x86_64.so",
+            f"libgd{name}.linux.template_release.x86_64.so",
+            f"libgd{name}.windows.template_debug.x86_64.dll",
+            f"libgd{name}.windows.template_release.x86_64.dll",
+        }
+        if {item.name for item in libraries} != expected:
+            raise ValueError(f"{name}: six libraries required, got {len(libraries)}")
+    files: dict[str, object] = {entry_name: mark(main)}
     for library in libraries:
         files[f"bin/{library.name}"] = mark(library)
-    entry = {**mark(src / manifest_name), "files": files}
+    entry = {**mark(main), "files": files}
     meta_path = target / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {"versions": {}}
     old = meta["versions"].get(version)
@@ -61,11 +66,12 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
     # 不変版の照合後にだけ配布directoryを書き換える。
     release = target / version
     release.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src / manifest_name, release / manifest_name)
-    bin_dir = release / "bin"
-    bin_dir.mkdir(exist_ok=True)
-    for library in libraries:
-        shutil.copy2(library, bin_dir / library.name)
+    shutil.copy2(main, release / entry_name)
+    if native:
+        bin_dir = release / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        for library in libraries:
+            shutil.copy2(library, bin_dir / library.name)
     meta["description"] = config["description"]
     meta["versions"][version] = entry
     meta["latest"] = max(meta["versions"], key=lambda item: tuple(map(int, item.split("."))))

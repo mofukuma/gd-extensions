@@ -3,7 +3,7 @@
 Discord Gateway v10とRESTを使う文字Bot拡張。公開名は`GDDiscord`と`GDDiscordClient`で、`GDDiscord.bot()`が返すclientを保持して使う。
 
 ```sh
-gd add ext:@mofukuma/discord@^0.1.0
+gd add ext:@mofukuma/discord@^0.1.1
 ```
 
 ```gdscript

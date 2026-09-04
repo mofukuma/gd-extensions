@@ -1,6 +1,6 @@
 {
   "name": "@mofukuma/supabase",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "supabase.gdextension",
   "description": "Supabase DatabaseとAuthを使うclient拡張"
 }

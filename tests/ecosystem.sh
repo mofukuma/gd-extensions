@@ -41,6 +41,7 @@ curl -fsS --retry 30 --retry-delay 2 --retry-all-errors "$REGISTRY/-/search" >/d
 printf '[application]\nconfig/name="extension ecosystem test"\n' > "$PROJECT/project.godot"
 printf '{"name":"ecosystem-test","registry":"%s","imports":{}}\n' "$REGISTRY" > "$PROJECT/gd.json"
 cp tests/ext/startup_smoke.gd "$PROJECT/"
+cp tests/ext/gd_smoke.gd "$PROJECT/"
 
 # 静的な全件索引も実gdが指定語で絞り込む。
 search_out=$(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME search discord)
@@ -54,7 +55,9 @@ for name in discord memcached supabase; do
 	(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add "ext:@mofukuma/$name@$VERSION")
 	test -f "$PROJECT/vendor/ext/$name/$name.gdextension"
 done
-test "$(grep -c '"@mofukuma/[^" ]*@' "$PROJECT/gd.lock")" = 3
+(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add hello "gd:@mofukuma/hello@$VERSION")
+test -f "$PROJECT/vendor/hello.gd"
+test "$(grep -c '"@mofukuma/[^" ]*@' "$PROJECT/gd.lock")" = 4
 platform_file=$(find "$PROJECT/vendor/ext" -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) | head -n 1)
 test -n "$platform_file"
 
@@ -67,6 +70,10 @@ mv "$PROJECT/.godot/extension_list.cfg" "$PROJECT/extension_list.before"
 (cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-env=GD_CACHE_HOME install --cached-only)
 diff -ru "$PROJECT/vendor.before" "$PROJECT/vendor"
 cmp "$PROJECT/extension_list.before" "$PROJECT/.godot/extension_list.cfg"
+(cd "$PROJECT" && "$GD_PATH" --strict run gd_smoke.gd)
+if [ -n "$GODOT" ]; then
+	"$GODOT" --headless --path "$PROJECT" --script res://gd_smoke.gd
+fi
 
 # gdと、指定された場合は本家Godotにも三Singletonを順に確認させる。
 for singleton in GDDiscord GDMemcached GDSupabase; do

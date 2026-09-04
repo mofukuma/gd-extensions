@@ -8,15 +8,17 @@ gd 0.1.0 以降で、project の中から必要な拡張だけ追加します。
 既定の公式登録所は `https://mofukuma.github.io/gd-extensions` です。
 
 ```sh
-gd add ext:@mofukuma/discord@^0.1.0
-gd add ext:@mofukuma/memcached@^0.1.0
-gd add ext:@mofukuma/supabase@^0.1.0
+gd add hello gd:@mofukuma/hello@^0.1.1
+gd add ext:@mofukuma/discord@^0.1.1
+gd add ext:@mofukuma/memcached@^0.1.1
+gd add ext:@mofukuma/supabase@^0.1.1
 ```
 
 `gd install` は現在の OS に合う native library と manifest の SHA-256 を検証し、`vendor/ext/`へ置きます。
 
 | package | 入口 | 用途 |
 |---|---|---|
+| `@mofukuma/hello` | `vendor/hello.gd` | C++なしの純GDScript package実例 |
 | `@mofukuma/discord` | `GDDiscord` | Discord の文字 Bot |
 | `@mofukuma/memcached` | `GDMemcached` | Memcached client |
 | `@mofukuma/supabase` | `GDSupabase` | Supabase Database と Auth |

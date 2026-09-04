@@ -1,4 +1,4 @@
-# version tagから三OSのnative library、release、静的登録所を作る。
+# version tagから三OSのnative library、純GDScript package、静的登録所を作る。
 name: Release
 
 on:

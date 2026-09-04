@@ -29,6 +29,27 @@ def write_json(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
+# 純GDScript packageの入口directoryから配るfile treeを集める。
+def script_files(src: Path, main: Path, includes: object) -> dict[str, Path]:
+    if includes is None:
+        return {"mod.gd": main}
+    if not isinstance(includes, list) or not all(isinstance(item, str) for item in includes):
+        raise ValueError("include must be a string array")
+    root = main.parent.resolve()
+    found: dict[str, Path] = {}
+    for item in includes:
+        include = (src / item).resolve()
+        if include != root and root not in include.parents:
+            raise ValueError("include must stay under the main directory")
+        paths = [include] if include.is_file() else sorted(path for path in include.rglob("*") if path.is_file())
+        for path in paths:
+            relative = path.relative_to(root).as_posix()
+            found[relative] = path
+    if found.get("mod.gd") != main.resolve():
+        raise ValueError("include must contain main as mod.gd")
+    return found
+
+
 # 一つのpackage版を配置し、既存metaへ追加する。
 def package(source: Path, artifacts: Path, site: Path, name: str, version: str) -> Path:
     src = source / "extensions" / name
@@ -55,7 +76,8 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
         if set(found) != expected:
             raise ValueError(f"{name}: six runtime libraries required, got {len(found)}")
         libraries = [found[item] for item in sorted(expected)]
-    files: dict[str, object] = {entry_name: mark(main)}
+    sources = {entry_name: main} if native else script_files(src, main, config.get("include"))
+    files: dict[str, object] = {relative: mark(path) for relative, path in sources.items()}
     for library in libraries:
         files[f"bin/{library.name}"] = mark(library)
     entry = {**mark(main), "files": files}
@@ -68,7 +90,10 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
     # 不変版の照合後にだけ配布directoryを書き換える。
     release = target / version
     release.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(main, release / entry_name)
+    for relative, path in sources.items():
+        target_file = release / relative
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target_file)
     if native:
         bin_dir = release / "bin"
         bin_dir.mkdir(exist_ok=True)
@@ -97,7 +122,8 @@ def index(source: Path, site: Path) -> None:
         if str(config.get("main", "mod.gd")).endswith(".gd"):
             spec = f"{name} gd:@mofukuma/{name}@^{version}"
         rows.append(f'<li><code>gd add {spec}</code> — {meta["description"]}</li>')
-        results.append({"pkg": f"@mofukuma/{name}", "latest": meta["latest"], "description": meta["description"]})
+        kind = "gd" if str(config.get("main", "mod.gd")).endswith(".gd") else "ext"
+        results.append({"pkg": f"@mofukuma/{name}", "latest": meta["latest"], "description": meta["description"], "kind": kind})
     body = f"""<!doctype html>
 <html lang="ja"><meta charset="utf-8"><title>gd extensions</title>
 <h1>gd extensions</h1><ul>{"".join(rows)}</ul>
@@ -105,7 +131,7 @@ def index(source: Path, site: Path) -> None:
 """
     (site / "index.html").write_text(body, encoding="utf-8")
     (site / ".nojekyll").touch()
-    write_json(site / "-" / "search", {"results": results})
+    write_json(site / "-" / "catalog.json", {"packages": results})
     shutil.copy2(source / "LICENSE.txt", site / "LICENSE.txt")
     shutil.copy2(source / "NOTICE.md", site / "NOTICE.md")
 

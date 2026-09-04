@@ -1,5 +1,0 @@
-; Discord Identify永続上限のproject間共有を確かめる別project。
-config_version=5
-
-[application]
-config/name="discord-ext-other-test"

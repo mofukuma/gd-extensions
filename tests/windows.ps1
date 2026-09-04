@@ -1,12 +1,21 @@
-# Windows版三拡張を本家Godotで起動して読込みを確かめる。
+# Windows版二native拡張を本家Godotで起動して読込みを確かめる。
 param(
     [Parameter(Mandatory = $true)][string]$Godot,
     [string]$Target = "template_debug"
 )
 $ErrorActionPreference = "Stop"
 
+# Discord純GDScript packageを明示preloadで起動する。
+$discord = "tmp/discord_windows_test"
+New-Item -ItemType Directory -Force "$discord/vendor/discord" | Out-Null
+Copy-Item "tests/ext/discord/project.godot" "$discord/project.godot"
+Copy-Item "tests/ext/discord/package_smoke.gd" "$discord/package_smoke.gd"
+Copy-Item "extensions/discord/src/mod.gd" "$discord/vendor/discord/mod.gd"
+& $Godot --headless --path $discord --script res://package_smoke.gd
+if ($LASTEXITCODE -ne 0) { throw "discord failed to start" }
+
 # manifestとdebug libraryを試験projectへ置いて起動する。
-foreach ($name in @("discord", "memcached", "supabase")) {
+foreach ($name in @("memcached", "supabase")) {
     $project = "tmp/${name}_windows_test"
     New-Item -ItemType Directory -Force "$project/bin", "$project/.godot" | Out-Null
     Copy-Item "tests/ext/$name/project.godot" "$project/project.godot"

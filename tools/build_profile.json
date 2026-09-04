@@ -11,9 +11,6 @@
     "RefCounted",
     "SceneTree",
     "StreamPeerTCP",
-    "Time",
-    "TLSOptions",
-    "WebSocketPeer",
     "Window"
   ]
 }

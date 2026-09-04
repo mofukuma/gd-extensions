@@ -29,9 +29,8 @@ def extension(name, includes, extra_sources=None):
     return library
 
 
-# 三つの配布libraryを同じGodot ABIとbuild条件で作る。
+# 二つのnative配布libraryを同じGodot ABIとbuild条件で作る。
 libraries = [
-    extension("discord", ["thirdparty/sqlite"], [File("thirdparty/sqlite/sqlite.c")]),
     extension("memcached", []),
     extension("supabase", []),
 ]

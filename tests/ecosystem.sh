@@ -1,5 +1,5 @@
 #!/bin/bash
-# 登録所から実gdで三拡張をinstallし、固定・cache・起動まで一続きで確かめる。
+# 登録所から実gdで純GDScriptとnative拡張をinstallし、一続きで確かめる。
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -30,18 +30,19 @@ if [ -n "$SITE" ]; then
 	SERVER_PID=$!
 	REGISTRY="http://127.0.0.1:$PORT"
 	for _n in $(seq 1 100); do
-		curl -fsS "$REGISTRY/-/search" >/dev/null 2>&1 && break
+		curl -fsS "$REGISTRY/-/catalog.json" >/dev/null 2>&1 && break
 		sleep 0.05
 	done
 fi
 trap cleanup EXIT INT TERM
 test -n "$REGISTRY"
-curl -fsS --retry 30 --retry-delay 2 --retry-all-errors "$REGISTRY/-/search" >/dev/null
+curl -fsS --retry 30 --retry-delay 2 --retry-all-errors "$REGISTRY/-/catalog.json" >/dev/null
 
 printf '[application]\nconfig/name="extension ecosystem test"\n' > "$PROJECT/project.godot"
 printf '{"name":"ecosystem-test","registry":"%s","imports":{}}\n' "$REGISTRY" > "$PROJECT/gd.json"
 cp tests/ext/startup_smoke.gd "$PROJECT/"
 cp tests/ext/gd_smoke.gd "$PROJECT/"
+cp tests/ext/discord/package_smoke.gd "$PROJECT/discord_smoke.gd"
 
 # 静的な全件索引も実gdが指定語で絞り込む。
 search_out=$(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME search discord)
@@ -50,13 +51,15 @@ grep -q '@mofukuma/discord' <<<"$search_out"
 no_match=$(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME search package-that-does-not-exist)
 test "$no_match" = "no match"
 
-# 純GDScript packageはnative拡張一覧を作らず、単一のpreload先だけを置く。
+# 純GDScript packageはnative拡張一覧を作らず、明示preloadするtreeへ置く。
 (cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add hello "gd:@mofukuma/hello@$VERSION")
-test -f "$PROJECT/vendor/hello.gd"
+(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add discord "gd:@mofukuma/discord@$VERSION")
+test -f "$PROJECT/vendor/hello/mod.gd"
+test -f "$PROJECT/vendor/discord/mod.gd"
 test ! -e "$PROJECT/.godot/extension_list.cfg"
 
-# 三native packageも同じprojectへ取り込み、manifest・lock・現在platformのlibrary配置を確かめる。
-for name in discord memcached supabase; do
+# 二つのnative packageも同じprojectへ取り込み、manifest・lock・現在platformのlibrary配置を確かめる。
+for name in memcached supabase; do
 	(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add "ext:@mofukuma/$name@$VERSION")
 	test -f "$PROJECT/vendor/ext/$name/$name.gdextension"
 done
@@ -74,12 +77,14 @@ mv "$PROJECT/.godot/extension_list.cfg" "$PROJECT/extension_list.before"
 diff -ru "$PROJECT/vendor.before" "$PROJECT/vendor"
 cmp "$PROJECT/extension_list.before" "$PROJECT/.godot/extension_list.cfg"
 (cd "$PROJECT" && "$GD_PATH" --strict run gd_smoke.gd)
+(cd "$PROJECT" && "$GD_PATH" --strict run discord_smoke.gd)
 if [ -n "$GODOT" ]; then
 	"$GODOT" --headless --path "$PROJECT" --script res://gd_smoke.gd
+	"$GODOT" --headless --path "$PROJECT" --script res://discord_smoke.gd
 fi
 
-# gdと、指定された場合は本家Godotにも三Singletonを順に確認させる。
-for singleton in GDDiscord GDMemcached GDSupabase; do
+# gdと、指定された場合は本家Godotにも二Singletonを順に確認させる。
+for singleton in GDMemcached GDSupabase; do
 	(cd "$PROJECT" && GD_EXT_SINGLETON=$singleton "$GD_PATH" --strict --allow-ext --allow-env=GD_EXT_SINGLETON run startup_smoke.gd)
 	if [ -n "$GODOT" ]; then
 		GD_EXT_SINGLETON=$singleton "$GODOT" --headless --path "$PROJECT" --script res://startup_smoke.gd

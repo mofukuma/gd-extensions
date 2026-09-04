@@ -41,8 +41,10 @@ def main() -> int:
     shutil.copytree("extensions", source / "extensions")
     shutil.copy2("LICENSE.txt", source / "LICENSE.txt")
     shutil.copy2("NOTICE.md", source / "NOTICE.md")
-    native = ("discord", "memcached", "supabase")
-    packages = (*native, "hello")
+    # include指定した純GDScriptの相対treeも配れることをfixtureで確かめる。
+    (source / "extensions" / "discord" / "src" / "helper.gd").write_text("# fixture\n", encoding="utf-8")
+    native = ("memcached", "supabase")
+    packages = ("discord", "hello", *native)
     for name in native:
         # gd package clientと同じくlibrary pathを安全な相対pathに限定する。
         manifest_text = (source / "extensions" / name / f"{name}.gdextension").read_text(encoding="utf-8")
@@ -69,14 +71,24 @@ def main() -> int:
         config["version"] = "0.2.0"
         path.write_text(json.dumps(config), encoding="utf-8")
     subprocess.run(command + ["--version", "0.2.0"], check=True)
-    search = json.loads((site / "-" / "search").read_text(encoding="utf-8"))
-    assert {item["pkg"] for item in search["results"]} == {
+    catalog = json.loads((site / "-" / "catalog.json").read_text(encoding="utf-8"))
+    assert {item["pkg"] for item in catalog["packages"]} == {
         "@mofukuma/discord", "@mofukuma/hello", "@mofukuma/memcached", "@mofukuma/supabase"
+    }
+    kinds = {item["pkg"]: item["kind"] for item in catalog["packages"]}
+    assert kinds == {
+        "@mofukuma/discord": "gd",
+        "@mofukuma/hello": "gd",
+        "@mofukuma/memcached": "ext",
+        "@mofukuma/supabase": "ext",
     }
     # Pagesは純GDScript packageをnative拡張として案内しない。
     page = (site / "index.html").read_text(encoding="utf-8")
     assert "gd add hello gd:@mofukuma/hello@^0.2.0" in page
+    assert "gd add discord gd:@mofukuma/discord@^0.2.0" in page
     assert "gd add ext:@mofukuma/hello" not in page
+    assert "gd add ext:@mofukuma/discord" not in page
+    assert not (site / "-" / "search").exists()
     for name in packages:
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
         assert set(meta["versions"]) == {"0.1.2", "0.2.0"}
@@ -84,7 +96,9 @@ def main() -> int:
         entry_name = f"{name}.gdextension" if name in native else "mod.gd"
         entry = site / "@mofukuma" / name / "0.2.0" / entry_name
         assert meta["versions"]["0.2.0"]["sha256"] == hashlib.sha256(entry.read_bytes()).hexdigest()
-        assert len(meta["versions"]["0.2.0"]["files"]) == (7 if name in native else 1)
+        expected = 7 if name in native else (2 if name == "discord" else 1)
+        assert len(meta["versions"]["0.2.0"]["files"]) == expected
+    assert (site / "@mofukuma" / "discord" / "0.2.0" / "helper.gd").read_text(encoding="utf-8") == "# fixture\n"
     for name in native:
         # 同じ版のbinaryを差し替える不変版上書きを拒む。
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
@@ -98,7 +112,7 @@ def main() -> int:
         assert published.read_bytes() == published_before
         library.write_bytes(before)
     # 純GDScriptも元のfile名でなくmod.gdとして不変公開する。
-    hello = source / "extensions" / "hello" / "src" / "hello.gd"
+    hello = source / "extensions" / "hello" / "src" / "mod.gd"
     published_hello = site / "@mofukuma" / "hello" / "0.2.0" / "mod.gd"
     hello_before = hello.read_bytes()
     published_before = published_hello.read_bytes()
@@ -106,7 +120,7 @@ def main() -> int:
     failed = subprocess.run(command + ["--version", "0.2.0"], capture_output=True).returncode
     assert failed != 0
     assert published_hello.read_bytes() == published_before
-    print("registry=4/4 versions=2 hashes=22/22")
+    print("registry=4/4 versions=2 hashes=21/21")
     return 0
 
 

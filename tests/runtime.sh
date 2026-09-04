@@ -1,5 +1,5 @@
 #!/bin/bash
-# 本家Godotで三つの拡張を読込み、公開APIと通信処理を実動検証する。
+# 本家Godotで純GDScript packageと二native拡張を実動検証する。
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -61,10 +61,8 @@ prepare() {
 	fi
 }
 
-# Discordは実行中load、Gateway、REST、unloadをまとめて確かめる。
-prepare discord
-mv tmp/discord_ext_test/.godot/extension_list.cfg tmp/discord_ext_test/extension_list.disabled
-run_test discord 58
+# Discordは純GDScript moduleとしてGatewayとRESTをまとめて確かめる。
+GODOT="$GODOT" bash tests/discord.sh
 
 # Memcachedはlocal fake serverとの通信とunloadを確かめる。
 prepare memcached

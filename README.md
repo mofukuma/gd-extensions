@@ -4,22 +4,23 @@ gd と Godot 4.7 から使える公式 package 集です。native 拡張の公�
 
 ## 使う
 
-gd 0.1.0 以降で、project の中から必要な拡張だけ追加します。
+gd 0.2.4 以降で、project の中から必要な拡張だけ追加します。
 既定の公式登録所は `https://mofukuma.github.io/gd-extensions` です。
 
 ```sh
+gd search discord
 gd add hello gd:@mofukuma/hello@^0.1.2
-gd add ext:@mofukuma/discord@^0.1.2
+gd add discord gd:@mofukuma/discord@^0.1.2
 gd add ext:@mofukuma/memcached@^0.1.2
 gd add ext:@mofukuma/supabase@^0.1.2
 ```
 
-`gd install` は純GDScriptを`vendor/<呼び名>.gd`へ、検証したnative libraryとmanifestを`vendor/ext/`へ置きます。
+`gd install` は純GDScriptを`vendor/<呼び名>/`へ、検証したnative libraryとmanifestを`vendor/ext/`へ置きます。
 
 | package | 入口 | 用途 |
 |---|---|---|
-| `@mofukuma/hello` | `vendor/hello.gd` | C++なしの純GDScript package実例 |
-| `@mofukuma/discord` | `GDDiscord` | Discord の文字 Bot |
+| `@mofukuma/hello` | `preload("res://vendor/hello/mod.gd")` | C++なしの純GDScript package実例 |
+| `@mofukuma/discord` | `preload("res://vendor/discord/mod.gd")` | Discord の文字 Bot |
 | `@mofukuma/memcached` | `GDMemcached` | Memcached client |
 | `@mofukuma/supabase` | `GDSupabase` | Supabase Database と Auth |
 

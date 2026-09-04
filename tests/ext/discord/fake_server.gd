@@ -3,11 +3,11 @@ extends Node
 
 var rest := TCPServer.new() # REST要求を受けるserver
 var gateway := TCPServer.new() # WebSocket Gatewayを受けるserver
-var rest_peers: Array[Dictionary] = [] # 読取り途中のREST接続
-var sockets: Array[Dictionary] = [] # Gateway WebSocketと接続状態
+var rest_peers := [] # 読取り途中のREST接続
+var sockets := [] # Gateway WebSocketと接続状態
 var rest_count := 0 # message作成を受けた回数
 var global_at := 0 # global 429を返した時刻
-var rest_global_at: Array[int] = [] # global件数試験を受けた時刻
+var rest_global_at := [] # global件数試験を受けた時刻
 var gateway_bot_count := 0 # Gateway Bot情報を返した回数
 var identify_token := "" # Identifyで受けたtoken
 var identify_count := 0 # 新規Identifyを受けた回数
@@ -32,7 +32,7 @@ var hello_count := 0 # Gateway Helloを送った回数
 
 
 # localhostの空きportでRESTとGatewayを始める。
-func start() -> Dictionary:
+func start():
 	if rest.listen(0, "127.0.0.1") != OK:
 		return {}
 	if gateway.listen(0, "127.0.0.1") != OK:
@@ -57,14 +57,14 @@ func _process(_delta):
 # 完成したREST要求へDiscord風JSONを返す。
 func _process_rest():
 	for i in range(rest_peers.size() - 1, -1, -1):
-		var item := rest_peers[i]
-		var peer: StreamPeerTCP = item.peer
+		var item = rest_peers[i]
+		var peer = item.peer
 		if peer.poll() != OK:
 			rest_peers.remove_at(i)
 			continue
-		var count := peer.get_available_bytes()
+		var count = peer.get_available_bytes()
 		if count > 0:
-			var got := peer.get_data(count)
+			var got = peer.get_data(count)
 			if got[0] == OK:
 				item.bytes.append_array(got[1])
 		if _http_complete(item.bytes):
@@ -73,9 +73,9 @@ func _process_rest():
 
 
 # headerと宣言済みbodyが揃ったか判断する。
-func _http_complete(bytes: PackedByteArray) -> bool:
-	var text := bytes.get_string_from_utf8()
-	var split := text.find("\r\n\r\n")
+func _http_complete(bytes):
+	var text = bytes.get_string_from_utf8()
+	var split = text.find("\r\n\r\n")
 	if split < 0:
 		return false
 	var length := 0
@@ -86,16 +86,16 @@ func _http_complete(bytes: PackedByteArray) -> bool:
 
 
 # REST要求をmethod、path、header、JSON bodyへ分ける。
-func _http_request(text: String) -> Dictionary:
-	var split := text.find("\r\n\r\n")
-	var lines := text.left(split).split("\r\n")
-	var first := lines[0].split(" ")
+func _http_request(text):
+	var split = text.find("\r\n\r\n")
+	var lines = text.left(split).split("\r\n")
+	var first = lines[0].split(" ")
 	var headers := {}
 	for line in lines.slice(1):
-		var at := line.find(":")
+		var at = line.find(":")
 		if at > 0:
 			headers[line.left(at).to_lower()] = line.substr(at + 1).strip_edges()
-	var raw_body := text.substr(split + 4)
+	var raw_body = text.substr(split + 4)
 	return {
 		"method": first[0],
 		"path": first[1],
@@ -105,8 +105,8 @@ func _http_request(text: String) -> Dictionary:
 
 
 # 初回だけ429、再試行にはmessageを返してrate limit処理を確かめる。
-func _respond_rest(peer: StreamPeerTCP, text: String):
-	var req := _http_request(text)
+func _respond_rest(peer, text):
+	var req = _http_request(text)
 	var status := 200
 	var data
 	var extra := "X-RateLimit-Remaining: 1\r\nX-RateLimit-Reset-After: 0.05\r\n"
@@ -182,15 +182,15 @@ func _respond_rest(peer: StreamPeerTCP, text: String):
 	var body := "" if data == null else JSON.stringify(data)
 	var reason := "No Content" if status == 204 else ("Too Many Requests" if status == 429 else ("Forbidden" if status == 403 else ("Unauthorized" if status == 401 else "OK")))
 	var response := "HTTP/1.1 %d %s\r\nContent-Type: application/json\r\n%sContent-Length: %d\r\nConnection: close\r\n\r\n%s" % [status, reason, extra, body.to_utf8_buffer().size(), body]
-	var _sent := peer.put_data(response.to_utf8_buffer())
+	var _sent = peer.put_data(response.to_utf8_buffer())
 	peer.disconnect_from_host()
 
 
 # Gateway handshake、Identify、Resume、heartbeat、dispatchを再現する。
 func _process_gateway():
 	for i in range(sockets.size() - 1, -1, -1):
-		var item := sockets[i]
-		var ws: WebSocketPeer = item.ws
+		var item = sockets[i]
+		var ws = item.ws
 		ws.poll()
 		if ws.get_ready_state() == WebSocketPeer.STATE_CLOSED:
 			if ws.get_close_code() == 1000:
@@ -219,7 +219,6 @@ func _process_gateway():
 			elif payload.op == 6:
 				resume_count += 1
 				_send(ws, {"op": 0, "s": 3, "t": "RESUMED", "d": {}})
-				item.close_at = Time.get_ticks_msec() + 100
 			elif payload.op == 1:
 				_send(ws, {"op": 11, "d": null})
 			elif payload.op == 3:
@@ -227,5 +226,5 @@ func _process_gateway():
 
 
 # JSONをGateway text frameで送る。
-func _send(ws: WebSocketPeer, payload: Dictionary):
-	var _sent := ws.send_text(JSON.stringify(payload))
+func _send(ws, payload):
+	var _sent = ws.send_text(JSON.stringify(payload))

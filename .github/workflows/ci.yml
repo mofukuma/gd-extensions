@@ -1,4 +1,4 @@
-# mainの三対応OSでbuildし、本家Godotが拡張を読めることを検査する。
+# mainの三対応OSでnative buildと純GDScript packageを検査する。
 name: CI
 
 on:

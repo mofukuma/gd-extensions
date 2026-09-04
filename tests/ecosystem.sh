@@ -50,13 +50,16 @@ grep -q '@mofukuma/discord' <<<"$search_out"
 no_match=$(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME search package-that-does-not-exist)
 test "$no_match" = "no match"
 
-# 三packageを同じprojectへ取り込み、manifest・lock・現在platformのlibrary配置を確かめる。
+# 純GDScript packageはnative拡張一覧を作らず、単一のpreload先だけを置く。
+(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add hello "gd:@mofukuma/hello@$VERSION")
+test -f "$PROJECT/vendor/hello.gd"
+test ! -e "$PROJECT/.godot/extension_list.cfg"
+
+# 三native packageも同じprojectへ取り込み、manifest・lock・現在platformのlibrary配置を確かめる。
 for name in discord memcached supabase; do
 	(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add "ext:@mofukuma/$name@$VERSION")
 	test -f "$PROJECT/vendor/ext/$name/$name.gdextension"
 done
-(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add hello "gd:@mofukuma/hello@$VERSION")
-test -f "$PROJECT/vendor/hello.gd"
 test "$(grep -c '"@mofukuma/[^" ]*@' "$PROJECT/gd.lock")" = 4
 platform_file=$(find "$PROJECT/vendor/ext" -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) | head -n 1)
 test -n "$platform_file"

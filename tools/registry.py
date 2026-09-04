@@ -90,7 +90,13 @@ def index(source: Path, site: Path) -> None:
     results = []
     for name in PACKAGES:
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
-        rows.append(f'<li><code>gd add ext:@mofukuma/{name}@^{meta["latest"]}</code> — {meta["description"]}</li>')
+        # 公開入口の種類に合う、そのまま実行できる導入commandを作る。
+        config = json.loads((source / "extensions" / name / "gd.json").read_text(encoding="utf-8"))
+        version = meta["latest"]
+        spec = f"ext:@mofukuma/{name}@^{version}"
+        if str(config.get("main", "mod.gd")).endswith(".gd"):
+            spec = f"{name} gd:@mofukuma/{name}@^{version}"
+        rows.append(f'<li><code>gd add {spec}</code> — {meta["description"]}</li>')
         results.append({"pkg": f"@mofukuma/{name}", "latest": meta["latest"], "description": meta["description"]})
     body = f"""<!doctype html>
 <html lang="ja"><meta charset="utf-8"><title>gd extensions</title>

@@ -61,7 +61,7 @@ def main() -> int:
         "--site",
         str(site),
     ]
-    subprocess.run(command + ["--version", "0.1.1"], check=True)
+    subprocess.run(command + ["--version", "0.1.2"], check=True)
     # 二版目のsource設定を進め、既存版を壊さず追加できるか確かめる。
     for name in packages:
         path = source / "extensions" / name / "gd.json"
@@ -73,9 +73,13 @@ def main() -> int:
     assert {item["pkg"] for item in search["results"]} == {
         "@mofukuma/discord", "@mofukuma/hello", "@mofukuma/memcached", "@mofukuma/supabase"
     }
+    # Pagesは純GDScript packageをnative拡張として案内しない。
+    page = (site / "index.html").read_text(encoding="utf-8")
+    assert "gd add hello gd:@mofukuma/hello@^0.2.0" in page
+    assert "gd add ext:@mofukuma/hello" not in page
     for name in packages:
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
-        assert set(meta["versions"]) == {"0.1.1", "0.2.0"}
+        assert set(meta["versions"]) == {"0.1.2", "0.2.0"}
         assert meta["latest"] == "0.2.0"
         entry_name = f"{name}.gdextension" if name in native else "mod.gd"
         entry = site / "@mofukuma" / name / "0.2.0" / entry_name
@@ -84,7 +88,7 @@ def main() -> int:
     for name in native:
         # 同じ版のbinaryを差し替える不変版上書きを拒む。
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
-        library = next(artifacts.glob(f"libgd{name}.*"))
+        library = artifacts / f"libgd{name}.macos.template_debug.arm64.dylib"
         before = library.read_bytes()
         published = site / "@mofukuma" / name / "0.2.0" / "bin" / library.name
         published_before = published.read_bytes()

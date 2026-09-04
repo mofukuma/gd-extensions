@@ -182,7 +182,7 @@ jobs:
           version=${RELEASE_TAG#v}
           uv run --no-project tools/registry.py --source . --artifacts tmp/artifacts --site tmp/site --version "$version"
           mkdir -p tmp/dist
-          for name in discord memcached supabase; do
+          for name in discord hello memcached supabase; do
             release="tmp/site/@mofukuma/$name/$version"
             find "$release" -exec touch -d '1980-01-01 UTC' {} +
             (cd "$release" && find . -type f -print | LC_ALL=C sort | zip -X -q "$GITHUB_WORKSPACE/tmp/dist/$name-$version.zip" -@)

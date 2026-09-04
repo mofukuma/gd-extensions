@@ -1,6 +1,6 @@
 # gd extensions
 
-gd と Godot 4.7 から使える公式 GDExtension 集です。公開 API は `GD` から始まる短い名前に揃えています。
+gd と Godot 4.7 から使える公式 package 集です。native 拡張の公開 API は `GD` から始まる短い名前に揃えています。
 
 ## 使う
 
@@ -8,13 +8,13 @@ gd 0.1.0 以降で、project の中から必要な拡張だけ追加します。
 既定の公式登録所は `https://mofukuma.github.io/gd-extensions` です。
 
 ```sh
-gd add hello gd:@mofukuma/hello@^0.1.1
-gd add ext:@mofukuma/discord@^0.1.1
-gd add ext:@mofukuma/memcached@^0.1.1
-gd add ext:@mofukuma/supabase@^0.1.1
+gd add hello gd:@mofukuma/hello@^0.1.2
+gd add ext:@mofukuma/discord@^0.1.2
+gd add ext:@mofukuma/memcached@^0.1.2
+gd add ext:@mofukuma/supabase@^0.1.2
 ```
 
-`gd install` は現在の OS に合う native library と manifest の SHA-256 を検証し、`vendor/ext/`へ置きます。
+`gd install` は純GDScriptを`vendor/<呼び名>.gd`へ、検証したnative libraryとmanifestを`vendor/ext/`へ置きます。
 
 | package | 入口 | 用途 |
 |---|---|---|
@@ -23,7 +23,7 @@ gd add ext:@mofukuma/supabase@^0.1.1
 | `@mofukuma/memcached` | `GDMemcached` | Memcached client |
 | `@mofukuma/supabase` | `GDSupabase` | Supabase Database と Auth |
 
-詳しい使い方は [Discord](extensions/discord/README.md)、[Memcached](extensions/memcached/README.md)、[Supabase](extensions/supabase/README.md) にあります。
+詳しい使い方は [Hello](extensions/hello/README.md)、[Discord](extensions/discord/README.md)、[Memcached](extensions/memcached/README.md)、[Supabase](extensions/supabase/README.md) にあります。
 
 ## 対応環境
 

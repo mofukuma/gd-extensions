@@ -64,6 +64,7 @@ def main() -> int:
         "--site",
         str(site),
     ]
+    initial = json.loads((source / "extensions" / "discord" / "gd.json").read_text(encoding="utf-8"))["version"]
     # package tree内のlinkから外のfileを配らない。
     secret = source / "extensions" / "discord" / "secret.gd"
     leak = source / "extensions" / "discord" / "src" / "leak.gd"
@@ -73,7 +74,7 @@ def main() -> int:
     except OSError:
         pass
     else:
-        failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
+        failed = subprocess.run(command + ["--version", initial], capture_output=True).returncode
         assert failed != 0
         leak.unlink()
     # native入口とartifactもlink経由で外を公開しない。
@@ -85,7 +86,7 @@ def main() -> int:
     except OSError:
         native_real.rename(native_main)
     else:
-        failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
+        failed = subprocess.run(command + ["--version", initial], capture_output=True).returncode
         assert failed != 0
         native_main.unlink()
         native_real.rename(native_main)
@@ -97,11 +98,11 @@ def main() -> int:
     except OSError:
         artifact_real.rename(artifact)
     else:
-        failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
+        failed = subprocess.run(command + ["--version", initial], capture_output=True).returncode
         assert failed != 0
         artifact.unlink()
         artifact_real.rename(artifact)
-    subprocess.run(command + ["--version", "0.1.2"], check=True)
+    subprocess.run(command + ["--version", initial], check=True)
     # 二版目のsource設定を進め、既存版を壊さず追加できるか確かめる。
     for name in packages:
         path = source / "extensions" / name / "gd.json"
@@ -129,7 +130,7 @@ def main() -> int:
     assert not (site / "-" / "search").exists()
     for name in packages:
         meta = json.loads((site / "@mofukuma" / name / "meta.json").read_text(encoding="utf-8"))
-        assert set(meta["versions"]) == {"0.1.2", "0.2.0"}
+        assert set(meta["versions"]) == {initial, "0.2.0"}
         assert meta["latest"] == "0.2.0"
         entry_name = f"{name}.gdextension" if name in native else "mod.gd"
         entry = site / "@mofukuma" / name / "0.2.0" / entry_name

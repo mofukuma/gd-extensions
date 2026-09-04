@@ -9,10 +9,10 @@ gd 0.2.4 以降で、project の中から必要な拡張だけ追加します。
 
 ```sh
 gd search discord
-gd add hello gd:@mofukuma/hello@^0.1.2
-gd add discord gd:@mofukuma/discord@^0.1.2
-gd add ext:@mofukuma/memcached@^0.1.2
-gd add ext:@mofukuma/supabase@^0.1.2
+gd add hello gd:@mofukuma/hello@^0.1.3
+gd add discord gd:@mofukuma/discord@^0.1.3
+gd add ext:@mofukuma/memcached@^0.1.3
+gd add ext:@mofukuma/supabase@^0.1.3
 ```
 
 `gd install` は純GDScriptを`vendor/<呼び名>/`へ、検証したnative libraryとmanifestを`vendor/ext/`へ置きます。

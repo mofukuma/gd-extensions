@@ -3,7 +3,7 @@
 C++やGDExtensionを使わない、1本の`.gd`だけで配れるpackageの最小実例です。
 
 ```sh
-gd add hello gd:@mofukuma/hello@^0.1.2
+gd add hello gd:@mofukuma/hello@^0.1.3
 ```
 
 ```gdscript

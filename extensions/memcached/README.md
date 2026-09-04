@@ -3,7 +3,7 @@
 Memcachedのcache操作をgdと本家Godotから使う。公開名は`GDMemcached`と`GDMemcachedClient`で、clientの型名は通常書かない。
 
 ```sh
-gd add ext:@mofukuma/memcached@^0.1.2
+gd add ext:@mofukuma/memcached@^0.1.3
 ```
 
 ```gdscript

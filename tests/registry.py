@@ -26,6 +26,8 @@ def libraries(root: Path, name: str) -> None:
         path = root / f"libgd{name}.{suffix}"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(f"{name}-{suffix}".encode())
+    # Windows linkerの補助生成物は配布runtime libraryへ混ぜない。
+    (root / f"libgd{name}.windows.template_debug.x86_64.lib").write_bytes(b"link helper")
 
 
 # generatorを二版に対して動かし、過去版とhashを保つことを確かめる。

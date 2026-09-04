@@ -41,7 +41,7 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
     if not main.is_file() or (not native and main.suffix != ".gd"):
         raise ValueError(f"{name}: .gd or .gdextension entry required")
     entry_name = main.name if native else "mod.gd"
-    libraries = sorted(artifacts.glob(f"**/libgd{name}.*")) if native else []
+    libraries: list[Path] = []
     if native:
         expected = {
             f"libgd{name}.macos.template_debug.arm64.dylib",
@@ -51,8 +51,10 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
             f"libgd{name}.windows.template_debug.x86_64.dll",
             f"libgd{name}.windows.template_release.x86_64.dll",
         }
-        if {item.name for item in libraries} != expected:
-            raise ValueError(f"{name}: six libraries required, got {len(libraries)}")
+        found = {item.name: item for item in artifacts.glob(f"**/libgd{name}.*") if item.name in expected}
+        if set(found) != expected:
+            raise ValueError(f"{name}: six runtime libraries required, got {len(found)}")
+        libraries = [found[item] for item in sorted(expected)]
     files: dict[str, object] = {entry_name: mark(main)}
     for library in libraries:
         files[f"bin/{library.name}"] = mark(library)

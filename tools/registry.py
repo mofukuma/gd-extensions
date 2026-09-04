@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -29,23 +30,66 @@ def write_json(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
 
 
+# pathの各段にsymlinkやjunctionが無いか確かめる。
+def no_links(root: Path, path: Path) -> None:
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except ValueError as error:
+        raise ValueError("package path leaves its source") from error
+    if ".." in relative.parts:
+        raise ValueError("package path leaves its source")
+    current = root.absolute()
+    for part in relative.parts:
+        current /= part
+        junction = getattr(current, "is_junction", lambda: False)()
+        if current.is_symlink() or junction:
+            raise ValueError(f"package path must not be a link: {current}")
+
+
+# symlinkを辿らず通常fileだけを集める。
+def regular_files(root: Path, path: Path) -> list[Path]:
+    no_links(root, path)
+    if path.is_file():
+        return [path]
+    if not path.is_dir():
+        raise ValueError(f"package path must be a regular file or directory: {path}")
+    found: list[Path] = []
+    for base, dirs, files in os.walk(path, followlinks=False):
+        current = Path(base)
+        dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+        for name in dirs:
+            no_links(root, current / name)
+        for name in sorted(name for name in files if not name.startswith(".")):
+            file = current / name
+            no_links(root, file)
+            if not file.is_file():
+                raise ValueError(f"package path must be a regular file: {file}")
+            found.append(file)
+    return found
+
+
 # 純GDScript packageの入口directoryから配るfile treeを集める。
 def script_files(src: Path, main: Path, includes: object) -> dict[str, Path]:
+    no_links(src, main)
+    if not main.is_file():
+        raise ValueError("main must be a regular file")
     if includes is None:
         return {"mod.gd": main}
     if not isinstance(includes, list) or not all(isinstance(item, str) for item in includes):
         raise ValueError("include must be a string array")
-    root = main.parent.resolve()
+    root = main.parent
     found: dict[str, Path] = {}
     for item in includes:
-        include = (src / item).resolve()
-        if include != root and root not in include.parents:
+        include = src / item
+        no_links(src, include)
+        resolved = include.resolve()
+        resolved_root = root.resolve()
+        if resolved != resolved_root and resolved_root not in resolved.parents:
             raise ValueError("include must stay under the main directory")
-        paths = [include] if include.is_file() else sorted(path for path in include.rglob("*") if path.is_file())
-        for path in paths:
-            relative = path.relative_to(root).as_posix()
+        for path in regular_files(src, include):
+            relative = path.resolve().relative_to(resolved_root).as_posix()
             found[relative] = path
-    if found.get("mod.gd") != main.resolve():
+    if found.get("mod.gd") != main:
         raise ValueError("include must contain main as mod.gd")
     return found
 

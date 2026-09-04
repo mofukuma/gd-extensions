@@ -63,6 +63,18 @@ def main() -> int:
         "--site",
         str(site),
     ]
+    # package tree内のlinkから外のfileを配らない。
+    secret = source / "extensions" / "discord" / "secret.gd"
+    leak = source / "extensions" / "discord" / "src" / "leak.gd"
+    secret.write_text("# secret\n", encoding="utf-8")
+    try:
+        leak.symlink_to("../secret.gd")
+    except OSError:
+        pass
+    else:
+        failed = subprocess.run(command + ["--version", "0.1.2"], capture_output=True).returncode
+        assert failed != 0
+        leak.unlink()
     subprocess.run(command + ["--version", "0.1.2"], check=True)
     # 二版目のsource設定を進め、既存版を壊さず追加できるか確かめる。
     for name in packages:

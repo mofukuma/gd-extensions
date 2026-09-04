@@ -181,6 +181,8 @@ def index(source: Path, site: Path) -> None:
     (site / "index.html").write_text(body, encoding="utf-8")
     (site / ".nojekyll").touch()
     write_json(site / "-" / "catalog.json", {"packages": results})
+    # 旧形式を残さず、検索入口を一つに保つ。
+    (site / "-" / "search").unlink(missing_ok=True)
     shutil.copy2(source / "LICENSE.txt", site / "LICENSE.txt")
     shutil.copy2(source / "NOTICE.md", site / "NOTICE.md")
 

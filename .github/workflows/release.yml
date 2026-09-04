@@ -119,8 +119,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p tmp/gd
-          curl --fail --location --retry 3 -o tmp/gd.tar.gz https://github.com/mofukuma/gd-extensions/releases/download/toolchain-v0.2.2/gd-linux-x86_64.tar.gz
-          echo 'ec7259d0d12498bceaced0cd76c84f86e277d0dfc4f625b5a82c38034d16328b  tmp/gd.tar.gz' | sha256sum -c -
+          curl --fail --location --retry 3 -o tmp/gd.tar.gz https://github.com/mofukuma/gd/releases/download/v0.2.3/gd-linux-x86_64.tar.gz
+          echo '7171541860f996a6eb2a717edc224b0c560797767f99f931844aee3c6a8b0dee  tmp/gd.tar.gz' | sha256sum -c -
           tar -xzf tmp/gd.tar.gz -C tmp/gd --strip-components=1
           chmod +x tmp/gd/gd
       - name: Build static registry
@@ -244,8 +244,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p tmp/gd
-          curl --fail --location --retry 3 -o tmp/gd.tar.gz https://github.com/mofukuma/gd-extensions/releases/download/toolchain-v0.2.2/gd-linux-x86_64.tar.gz
-          echo 'ec7259d0d12498bceaced0cd76c84f86e277d0dfc4f625b5a82c38034d16328b  tmp/gd.tar.gz' | sha256sum -c -
+          curl --fail --location --retry 3 -o tmp/gd.tar.gz https://github.com/mofukuma/gd/releases/download/v0.2.3/gd-linux-x86_64.tar.gz
+          echo '7171541860f996a6eb2a717edc224b0c560797767f99f931844aee3c6a8b0dee  tmp/gd.tar.gz' | sha256sum -c -
           tar -xzf tmp/gd.tar.gz -C tmp/gd --strip-components=1
           chmod +x tmp/gd/gd
       - name: Install from the published ecosystem

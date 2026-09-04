@@ -3,7 +3,7 @@
 Discord Gateway v10とRESTを使う純GDScript文字Bot packageです。C++、GDExtension、platform別binaryは使いません。
 
 ```sh
-gd add discord gd:@mofukuma/discord@^0.1.2
+gd add discord gd:@mofukuma/discord@^0.1.3
 ```
 
 ```gdscript

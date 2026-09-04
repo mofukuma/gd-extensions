@@ -3,7 +3,7 @@
 SupabaseのDatabaseとAuthをgdから使う。公開名は`GDSupabase`と`GDSupabaseClient`で、clientの型名は通常書かない。
 
 ```sh
-gd add ext:@mofukuma/supabase@^0.1.2
+gd add ext:@mofukuma/supabase@^0.1.3
 ```
 
 ```gdscript

@@ -1,0 +1,19 @@
+{
+  "enabled_classes": [
+    "Engine",
+    "HTTPClient",
+    "HTTPRequest",
+    "IP",
+    "JSON",
+    "Marshalls",
+    "Node",
+    "OS",
+    "RefCounted",
+    "SceneTree",
+    "StreamPeerTCP",
+    "Time",
+    "TLSOptions",
+    "WebSocketPeer",
+    "Window"
+  ]
+}

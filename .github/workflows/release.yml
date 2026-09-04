@@ -98,22 +98,14 @@ jobs:
         with:
           path: tmp/artifacts
           merge-multiple: true
-      - name: Read private gd source with a dedicated deploy key
-        env:
-          GD_SOURCE_KEY: ${{ secrets.GD_SOURCE_KEY }}
-          GD_SOURCE_REV: 8effc9d8d893219bd8d97a627206ae032437bcb7 # 静的検索とRange取得を含む検証済みcore
+      - name: Download verified gd package client
         shell: bash
         run: |
-          test -n "$GD_SOURCE_KEY"
-          install -m 700 -d tmp/ssh
-          printf '%s\n' "$GD_SOURCE_KEY" > tmp/ssh/id_ed25519
-          chmod 600 tmp/ssh/id_ed25519
-          curl --fail --silent https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > tmp/ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i $PWD/tmp/ssh/id_ed25519 -o UserKnownHostsFile=$PWD/tmp/ssh/known_hosts"
-          git clone --filter=blob:none --no-checkout git@github.com:mofukuma/gd.git tmp/gd
-          git -C tmp/gd checkout --detach "$GD_SOURCE_REV"
-      - name: Build real gd package client
-        run: uvx --from scons==4.10.1 scons -C tmp/gd platform=linuxbsd target=template_debug -j3
+          mkdir -p tmp/gd
+          curl --fail --location --retry 3 -o tmp/gd.tar.gz https://github.com/mofukuma/gd/releases/download/v0.2.2/gd-linux-x86_64.tar.gz
+          echo 'ec7259d0d12498bceaced0cd76c84f86e277d0dfc4f625b5a82c38034d16328b  tmp/gd.tar.gz' | sha256sum -c -
+          tar -xzf tmp/gd.tar.gz -C tmp/gd --strip-components=1
+          chmod +x tmp/gd/gd
       - name: Build static registry
         shell: bash
         run: |
@@ -128,7 +120,7 @@ jobs:
           chmod +x tmp/godot/Godot_v4.7.1-stable_linux.x86_64
       - name: Install through HTTP and start with Godot
         env:
-          GD: tmp/gd/bin/gd.linuxbsd.template_debug.x86_64
+          GD: tmp/gd/gd
           GODOT: tmp/godot/Godot_v4.7.1-stable_linux.x86_64
           SITE: tmp/site
         shell: bash
@@ -219,3 +211,26 @@ jobs:
       - name: Deploy registry
         id: deploy
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
+
+  published:
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Download verified gd package client
+        shell: bash
+        run: |
+          mkdir -p tmp/gd
+          curl --fail --location --retry 3 -o tmp/gd.tar.gz https://github.com/mofukuma/gd/releases/download/v0.2.2/gd-linux-x86_64.tar.gz
+          echo 'ec7259d0d12498bceaced0cd76c84f86e277d0dfc4f625b5a82c38034d16328b  tmp/gd.tar.gz' | sha256sum -c -
+          tar -xzf tmp/gd.tar.gz -C tmp/gd --strip-components=1
+          chmod +x tmp/gd/gd
+      - name: Install from the published ecosystem
+        env:
+          GD: tmp/gd/gd
+          REGISTRY: https://mofukuma.github.io/gd-extensions
+        shell: bash
+        run: VERSION=${GITHUB_REF_NAME#v} bash tests/ecosystem.sh

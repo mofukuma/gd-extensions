@@ -1,1 +1,0 @@
-{"results":[{"description":"Discord Gateway v10とRESTを使う文字Bot拡張","latest":"0.1.2","pkg":"@mofukuma/discord"},{"description":"純GDScript packageの最小実例","latest":"0.1.2","pkg":"@mofukuma/hello"},{"description":"Memcachedを非同期で使うcache client拡張","latest":"0.1.2","pkg":"@mofukuma/memcached"},{"description":"Supabase DatabaseとAuthを使うclient拡張","latest":"0.1.2","pkg":"@mofukuma/supabase"}]}

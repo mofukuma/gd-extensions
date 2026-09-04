@@ -159,7 +159,7 @@ def main() -> int:
     failed = subprocess.run(command + ["--version", "0.2.0"], capture_output=True).returncode
     assert failed != 0
     assert published_hello.read_bytes() == published_before
-    print("registry=4/4 versions=2 hashes=21/21")
+    print("registry=4/4 versions=2 hashes=22/22")
     return 0
 
 

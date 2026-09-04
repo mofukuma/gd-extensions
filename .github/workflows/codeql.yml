@@ -4,8 +4,12 @@ name: CodeQL
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
+    paths:
+      - '.github/workflows/codeql.yml'
+      - 'SConstruct'
+      - 'extensions/**'
+      - 'thirdparty/**'
+      - 'tools/build_profile.json'
   schedule:
     - cron: '31 3 * * 1'
 

@@ -4,8 +4,13 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
+    paths:
+      - '.github/workflows/ci.yml'
+      - 'SConstruct'
+      - 'extensions/**'
+      - 'tests/**'
+      - 'thirdparty/**'
+      - 'tools/**'
 
 permissions:
   contents: read

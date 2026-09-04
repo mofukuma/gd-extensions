@@ -4,6 +4,15 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 既存の不変release tag
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: read
@@ -33,9 +42,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # tagがmainに含まれるか判断する履歴
+          ref: ${{ inputs.tag || github.ref }} # 手動再実行も不変tagの内容をbuildする
       - name: Require a main commit
         shell: bash
-        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+        run: |
+          test "$(git describe --tags --exact-match HEAD)" = "$RELEASE_TAG"
+          git merge-base --is-ancestor HEAD origin/main
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Prepare godot-cpp
         shell: bash
@@ -45,9 +57,9 @@ jobs:
       - name: Match package versions
         shell: bash
         run: |
-          want=${GITHUB_REF_NAME#v}
+          want=${RELEASE_TAG#v}
           for file in extensions/*/gd.json; do
-            got=$(uv run --no-project python -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$file")
+            got=$(uv run --no-project python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"])' "$file")
             test "$want" = "$got"
           done
       - name: Build debug and release libraries
@@ -93,6 +105,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag || github.ref }} # 公開対象と同じsourceでE2Eする
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -109,7 +123,7 @@ jobs:
       - name: Build static registry
         shell: bash
         run: |
-          version=${GITHUB_REF_NAME#v}
+          version=${RELEASE_TAG#v}
           uv run --no-project tools/registry.py --source . --artifacts tmp/artifacts --site tmp/site --version "$version"
       - name: Download official Godot
         shell: bash
@@ -124,7 +138,7 @@ jobs:
           GODOT: tmp/godot/Godot_v4.7.1-stable_linux.x86_64
           SITE: tmp/site
         shell: bash
-        run: VERSION=${GITHUB_REF_NAME#v} bash tests/ecosystem.sh
+        run: VERSION=${RELEASE_TAG#v} bash tests/ecosystem.sh
 
   publish:
     needs: [build, ecosystem]
@@ -142,6 +156,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # registry branchとtag元を扱う履歴
+          ref: ${{ inputs.tag || github.ref }} # release archiveは不変tagから作る
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -161,7 +176,7 @@ jobs:
       - name: Build registry and release archives
         shell: bash
         run: |
-          version=${GITHUB_REF_NAME#v}
+          version=${RELEASE_TAG#v}
           uv run --no-project tools/registry.py --source . --artifacts tmp/artifacts --site tmp/site --version "$version"
           mkdir -p tmp/dist
           for name in discord memcached supabase; do
@@ -177,7 +192,7 @@ jobs:
           git -C tmp/site config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git -C tmp/site add .
           if ! git -C tmp/site diff --cached --quiet; then
-            git -C tmp/site commit -m "release: $GITHUB_REF_NAME"
+            git -C tmp/site commit -m "release: $RELEASE_TAG"
             git -C tmp/site push origin HEAD:registry
           fi
       - name: Publish GitHub release
@@ -185,12 +200,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             mkdir -p tmp/existing
-            gh release download "$GITHUB_REF_NAME" --dir tmp/existing
+            gh release download "$RELEASE_TAG" --dir tmp/existing
             diff -ru tmp/dist tmp/existing
           else
-            gh release create "$GITHUB_REF_NAME" tmp/dist/* --verify-tag --title "gd extensions $GITHUB_REF_NAME" --generate-notes
+            gh release create "$RELEASE_TAG" tmp/dist/* --verify-tag --title "gd extensions $RELEASE_TAG" --generate-notes
           fi
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
@@ -218,7 +233,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag || github.ref }} # 公開後も同じtagの試験を使う
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Download verified gd package client
         shell: bash
@@ -233,4 +250,4 @@ jobs:
           GD: tmp/gd/gd
           REGISTRY: https://mofukuma.github.io/gd-extensions
         shell: bash
-        run: VERSION=${GITHUB_REF_NAME#v} bash tests/ecosystem.sh
+        run: VERSION=${RELEASE_TAG#v} bash tests/ecosystem.sh

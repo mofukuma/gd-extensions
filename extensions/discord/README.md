@@ -11,7 +11,7 @@ var bot
 
 
 # Botを起動し、Gatewayの準備完了を待つ。
-func main() -> int:
+func main():
 	var token := OS.get_environment("DISCORD_TOKEN")
 	bot = GDDiscord.bot(token, {
 		"intents": GDDiscord.GUILDS | GDDiscord.GUILD_MESSAGES | GDDiscord.MESSAGE_CONTENT,
@@ -26,9 +26,9 @@ func main() -> int:
 
 
 # `!ping`へ返信する。
-func on_event(name: String, data):
+func on_event(name, data):
 	if name == "MESSAGE_CREATE" and data.content == "!ping":
-		var reply: Dictionary = await bot.send_message(data.channel_id, "pong")
+		var reply := await bot.send_message(data.channel_id, "pong")
 		if not reply.ok:
 			printerr(reply.error)
 ```

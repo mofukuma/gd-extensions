@@ -4,7 +4,7 @@ gd と Godot 4.7 から使える公式 package 集です。native 拡張の公�
 
 ## 使う
 
-gd 0.2.3 以降で、project の中から必要な拡張だけ追加します。
+gd 0.7.3 以降で、project の中から必要な拡張だけ追加します。
 既定の公式登録所は `https://mofukuma.github.io/gd-extensions` です。
 
 ```sh
@@ -15,12 +15,13 @@ gd add ext:@mofukuma/memcached@^0.1.3
 gd add ext:@mofukuma/supabase@^0.1.3
 ```
 
-`gd install` は純GDScriptを`vendor/<呼び名>/`へ、検証したnative libraryとmanifestを`vendor/ext/`へ置きます。
+純GDScript packageは共有cacheに置いたまま`pkg://<呼び名>/`で読みます。検証したnative libraryとmanifestは`pkg/<呼び名>/`へ置きます。
+本家Godotから読むときは`gd.json`へ`"place": "project"`を書くと純GDScript packageも`pkg/<呼び名>/`へ置かれ、`res://pkg/<呼び名>/mod.gd`で読めます。
 
 | package | 入口 | 用途 |
 |---|---|---|
-| `@mofukuma/hello` | `preload("res://vendor/hello/mod.gd")` | C++なしの純GDScript package実例 |
-| `@mofukuma/discord` | `preload("res://vendor/discord/mod.gd")` | Discord の文字 Bot |
+| `@mofukuma/hello` | `preload("pkg://hello/mod.gd")` | C++なしの純GDScript package実例 |
+| `@mofukuma/discord` | `preload("pkg://discord/mod.gd")` | Discord の文字 Bot |
 | `@mofukuma/memcached` | `GDMemcached` | Memcached client |
 | `@mofukuma/supabase` | `GDSupabase` | Supabase Database と Auth |
 

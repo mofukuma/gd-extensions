@@ -7,7 +7,7 @@ gd add hello gd:@mofukuma/hello@^0.1.3
 ```
 
 ```gdscript
-const Hello := preload("res://vendor/hello/mod.gd")
+const Hello := preload("pkg://hello/mod.gd")
 
 func main():
 	print(Hello.message("gd"))
@@ -15,5 +15,5 @@ func main():
 ```
 
 公開側は`gd.json`の`main`へ`src/mod.gd`、`include`へ`["src"]`を指定します。
-入口directoryのtreeは利用側の`vendor/<呼び名>/`へ配置されます。
+入口directoryのtreeがそのまま`pkg://<呼び名>/`から読めます。本家Godotでは`"place": "project"`で`pkg/<呼び名>/`へ置き、`res://pkg/<呼び名>/mod.gd`で読みます。
 利用側が明示的にpreloadするmoduleなので、公開入口ではglobalな`class_name`を使いません。

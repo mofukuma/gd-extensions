@@ -1,7 +1,7 @@
 # installしたDiscord純GDScript packageを明示preloadで確かめる。
 extends SceneTree
 
-const Discord := preload("res://vendor/discord/mod.gd") # install済みmodule
+const Discord := preload("res://pkg/discord/mod.gd") # install済みmodule
 
 
 # main loop開始後に公開API試験を予約する。

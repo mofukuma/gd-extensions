@@ -39,10 +39,12 @@ test -n "$REGISTRY"
 curl -fsS --retry 30 --retry-delay 2 --retry-all-errors "$REGISTRY/-/catalog.json" >/dev/null
 
 printf '[application]\nconfig/name="extension ecosystem test"\n' > "$PROJECT/project.godot"
-printf '{"name":"ecosystem-test","registry":"%s","imports":{}}\n' "$REGISTRY" > "$PROJECT/gd.json"
+printf '{"name":"ecosystem-test","registry":"%s","place":"project","imports":{}}\n' "$REGISTRY" > "$PROJECT/gd.json"
 cp tests/ext/startup_smoke.gd "$PROJECT/"
 cp tests/ext/gd_smoke.gd "$PROJECT/"
 cp tests/ext/discord/package_smoke.gd "$PROJECT/discord_smoke.gd"
+# gdだけの経路は共有cacheからpkg://で読む。
+printf 'const Hello = preload("pkg://hello/mod.gd")\n\n\nfunc main():\n\tprint("pkg_scheme=%%s" %% Hello.message("cache"))\n\treturn 0\n' > "$PROJECT/cache_smoke.gd"
 
 # 静的な全件索引も実gdが指定語で絞り込む。
 search_out=$(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME search discord)
@@ -51,33 +53,35 @@ grep -q '@mofukuma/discord' <<<"$search_out"
 no_match=$(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME search package-that-does-not-exist)
 test "$no_match" = "no match"
 
-# 純GDScript packageはnative拡張一覧を作らず、明示preloadするtreeへ置く。
+# 純GDScript packageはnative拡張一覧を作らず、place=projectではpkg/<呼び名>/へ置く。
 (cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add hello "gd:@mofukuma/hello@$VERSION")
 (cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add discord "gd:@mofukuma/discord@$VERSION")
-test -f "$PROJECT/vendor/hello/mod.gd"
-test -f "$PROJECT/vendor/discord/mod.gd"
+test -f "$PROJECT/pkg/hello/mod.gd"
+test -f "$PROJECT/pkg/discord/mod.gd"
 test ! -e "$PROJECT/.godot/extension_list.cfg"
 
 # 二つのnative packageも同じprojectへ取り込み、manifest・lock・現在platformのlibrary配置を確かめる。
 for name in memcached supabase; do
 	(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add "ext:@mofukuma/$name@$VERSION")
-	test -f "$PROJECT/vendor/ext/$name/$name.gdextension"
+	test -f "$PROJECT/pkg/$name/$name.gdextension"
 done
 test "$(grep -o '"@mofukuma/[^" ]*@' "$PROJECT/gd.lock" | wc -l)" = 4
-platform_file=$(find "$PROJECT/vendor/ext" -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) | head -n 1)
+platform_file=$(find "$PROJECT/pkg" -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) | head -n 1)
 test -n "$platform_file"
 
 # frozen再解決でlockを変えず、networkなしのcache再配置も同一になることを確かめる。
 cp "$PROJECT/gd.lock" "$PROJECT/gd.lock.before"
 (cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME install --frozen)
 cmp "$PROJECT/gd.lock.before" "$PROJECT/gd.lock"
-mv "$PROJECT/vendor" "$PROJECT/vendor.before"
+mv "$PROJECT/pkg" "$PROJECT/pkg.before"
 mv "$PROJECT/.godot/extension_list.cfg" "$PROJECT/extension_list.before"
 (cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-env=GD_CACHE_HOME install --cached-only)
-diff -ru "$PROJECT/vendor.before" "$PROJECT/vendor"
+diff -ru "$PROJECT/pkg.before" "$PROJECT/pkg"
 cmp "$PROJECT/extension_list.before" "$PROJECT/.godot/extension_list.cfg"
-(cd "$PROJECT" && "$GD_PATH" --strict run gd_smoke.gd)
-(cd "$PROJECT" && "$GD_PATH" --strict run discord_smoke.gd)
+(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --strict --allow-env=GD_CACHE_HOME run gd_smoke.gd)
+(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --strict --allow-env=GD_CACHE_HOME run discord_smoke.gd)
+# pkg://は置き場に関わらず同じ綴りで読める。
+(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --strict --allow-env=GD_CACHE_HOME run cache_smoke.gd | grep -q '^pkg_scheme=hello, cache$')
 if [ -n "$GODOT" ]; then
 	"$GODOT" --headless --path "$PROJECT" --script res://gd_smoke.gd
 	"$GODOT" --headless --path "$PROJECT" --script res://discord_smoke.gd
@@ -85,7 +89,7 @@ fi
 
 # gdと、指定された場合は本家Godotにも二Singletonを順に確認させる。
 for singleton in GDMemcached GDSupabase; do
-	(cd "$PROJECT" && GD_EXT_SINGLETON=$singleton "$GD_PATH" --strict --allow-ext --allow-env=GD_EXT_SINGLETON run startup_smoke.gd)
+	(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" GD_EXT_SINGLETON=$singleton "$GD_PATH" --strict --allow-ext --allow-env=GD_EXT_SINGLETON,GD_CACHE_HOME run startup_smoke.gd)
 	if [ -n "$GODOT" ]; then
 		GD_EXT_SINGLETON=$singleton "$GODOT" --headless --path "$PROJECT" --script res://startup_smoke.gd
 	fi

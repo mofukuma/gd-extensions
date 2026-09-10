@@ -1,7 +1,7 @@
 # installした純GDScript packageを利用側と同じpreloadで確かめる。
 extends SceneTree
 
-const Hello := preload("res://vendor/hello/mod.gd")
+const Hello := preload("res://pkg/hello/mod.gd")
 
 
 # moduleの公開関数を実行して終了する。

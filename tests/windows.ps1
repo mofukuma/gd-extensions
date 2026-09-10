@@ -7,10 +7,10 @@ $ErrorActionPreference = "Stop"
 
 # Discord純GDScript packageを明示preloadで起動する。
 $discord = "tmp/discord_windows_test"
-New-Item -ItemType Directory -Force "$discord/vendor/discord" | Out-Null
+New-Item -ItemType Directory -Force "$discord/pkg/discord" | Out-Null
 Copy-Item "tests/ext/discord/project.godot" "$discord/project.godot"
 Copy-Item "tests/ext/discord/package_smoke.gd" "$discord/package_smoke.gd"
-Copy-Item "extensions/discord/src/mod.gd" "$discord/vendor/discord/mod.gd"
+Copy-Item "extensions/discord/src/mod.gd" "$discord/pkg/discord/mod.gd"
 & $Godot --headless --path $discord --script res://package_smoke.gd
 if ($LASTEXITCODE -ne 0) { throw "discord failed to start" }
 

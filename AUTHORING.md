@@ -70,8 +70,8 @@ static func decorate(text):
 ```
 
 - `class_name`を使いません。呼び名は利用側が決めて`preload`します
-- package内のfileは**相対path**で`preload`します。treeは利用側の`vendor/<呼び名>/`へそのまま置かれるので、
-  呼び名が何であっても解決できます。`res://vendor/greet/style.gd`と書くと呼び名を固定してしまいます
+- package内のfileは**相対path**で`preload`します。treeは利用側で`pkg://<呼び名>/`からそのまま読まれるので、
+  呼び名が何であっても解決できます。`pkg://greet/style.gd`と書くと呼び名を固定してしまいます
 - 型注釈を書かない公開moduleでは、動的な戻り値へ`:=`を使いません（`var x = value`）。
   理由は[調査メモ](ログ/調査メモ_GDScript型推論の件.md)にあります
 
@@ -103,7 +103,7 @@ func main():
 gd add solo https://example.com/mod.gd
 ```
 
-`vendor/solo.gd`へ置かれ、`gd.lock`へSHA-256が入ります。file 1本だけの道です。
+`pkg://solo/mod.gd`で読め、`gd.lock`へSHA-256が入ります。file 1本だけの道です。
 
 **(b) 静的登録所。** 書込みserverが要らず、GitHub Pagesなどの静的配信で足ります。次の形を置きます。
 
@@ -133,20 +133,23 @@ publish側は`gd.json`へ`registry`を書き、tokenは環境変数だけで渡�
 GD_TOKEN=<token> gd --allow-net=127.0.0.1:8787 --allow-env=GD_TOKEN publish
 ```
 
-利用側も同じ登録所を指し、呼び名を決めて追加します。
+利用側も同じ登録所を指し、呼び名を決めて追加します。`gd.json`の`imports`へ書くだけでも、最初の実行で取得されます。
 
 ```sh
 gd add greet gd:@luca/greet@^0.1.0
 ```
 
 ```gdscript
-const Greet = preload("res://vendor/greet/mod.gd")
+const Greet = preload("pkg://greet/mod.gd")
 
 
 func main():
 	print(Greet.message("gd"))
 	return 0
 ```
+
+packageは利用者ごとの共有cacheに置かれ、projectへは複製されません。本家Godotなど`res://`しか読めない
+環境と共有するときは、`gd.json`へ`"place": "project"`を書くと`pkg/<呼び名>/`へ置かれ、`res://pkg/greet/mod.gd`でも読めます。
 
 版は不変です。同じ版を上書きできないので、直したら`version`を上げてから`gd publish`します。
 利用側は`gd update <呼び名> --latest`で範囲ごと上げられます。
@@ -376,7 +379,7 @@ func main():
 gd --strict --allow-ext run main.gd
 ```
 
-`gd install`は`vendor/ext/<name>/`へmanifestと**現在のOS向けlibraryだけ**を置き、
+`gd install`は`pkg/<name>/`へmanifestと**現在のOS向けlibraryだけ**を置き、
 `.godot/extension_list.cfg`へ登録します。`gd.lock`は全OS分の指紋を保つので、
 別のOSで`gd install`しても同じ内容が検証されます。
 

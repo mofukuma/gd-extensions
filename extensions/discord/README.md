@@ -7,7 +7,7 @@ gd add discord gd:@mofukuma/discord@^0.1.3
 ```
 
 ```gdscript
-const Discord := preload("res://vendor/discord/mod.gd")
+const Discord := preload("pkg://discord/mod.gd")
 
 var bot
 

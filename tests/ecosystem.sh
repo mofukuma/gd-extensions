@@ -63,7 +63,7 @@ for name in memcached supabase; do
 	(cd "$PROJECT" && GD_CACHE_HOME="$CACHE" "$GD_PATH" --allow-net --allow-env=GD_CACHE_HOME add "ext:@mofukuma/$name@$VERSION")
 	test -f "$PROJECT/vendor/ext/$name/$name.gdextension"
 done
-test "$(grep -c '"@mofukuma/[^" ]*@' "$PROJECT/gd.lock")" = 4
+test "$(grep -o '"@mofukuma/[^" ]*@' "$PROJECT/gd.lock" | wc -l)" = 4
 platform_file=$(find "$PROJECT/vendor/ext" -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) | head -n 1)
 test -n "$platform_file"
 

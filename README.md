@@ -37,6 +37,11 @@ native 拡張は process と同じ権限で動きます。信頼する package �
 
 公式登録所は読取り専用です。自作packageの`gd publish`には、`gd.json`の`registry`で自分の書込み可能な登録所を指定してください。
 
+## 自作する
+
+自分のpackageを作って配る手順は[自作packageの作り方](AUTHORING.md)にあります。
+純GDScriptならgdだけで作れます。C++が要るときのGDExtensionの道も同じ文書にあります。
+
 ## build
 
 Godot 4.7 対応の godot-cpp を用意し、対象を選んで build します。

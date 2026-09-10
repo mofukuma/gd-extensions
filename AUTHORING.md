@@ -39,8 +39,11 @@ gd init
 - `main`は入口の`.gd`。登録所では常に`mod.gd`という名前で配られます
 - `include`は`main`のdirectory内で一緒に配るfileまたはdirectory。省くと入口1本だけになります
 - `version`はbuild metadataの無い完全なSemantic Version。package全体で500 MiBまでです
+- `registry`は配布先。省くと環境変数`GD_REGISTRY`、それも無ければ公式登録所を見ます
 
 ### 1.2 入口
+
+`src/mod.gd`が公開入口です。
 
 ```gdscript
 # 利用側がpreloadする公開入口。
@@ -54,6 +57,18 @@ static func message(name = "world"):
 	return Style.decorate("hello, %s" % name)
 ```
 
+`include`に入れた`src/style.gd`は、入口から相対pathで呼ぶ内部moduleです。
+
+```gdscript
+# 入口から呼ぶpackage内部の補助module。
+extends RefCounted
+
+
+# 文字列を装飾して返す。
+static func decorate(text):
+	return "** %s **" % text
+```
+
 - `class_name`を使いません。呼び名は利用側が決めて`preload`します
 - package内のfileは**相対path**で`preload`します。treeは利用側の`vendor/<呼び名>/`へそのまま置かれるので、
   呼び名が何であっても解決できます。`res://vendor/greet/style.gd`と書くと呼び名を固定してしまいます
@@ -65,6 +80,17 @@ static func message(name = "world"):
 ```sh
 gd check src
 gd fmt --check src
+```
+
+配る前の動作確認は、package directoryの中から入口を直接`preload`すれば足ります。登録所は要りません。
+
+```gdscript
+const Greet = preload("src/mod.gd")
+
+
+func main():
+	print(Greet.message("local"))
+	return 0
 ```
 
 ### 1.3 配る三つの道
@@ -141,8 +167,18 @@ git -C tmp/ref_godot_cpp checkout 9c8aeff0f58ad030f3d1030e8262de1322cd0ccd
 公開Singletonは`Object`、利用者が持ち回すinstanceは`RefCounted`にします。
 `RefCounted`をSingletonへ登録すると、最後のRefが消えた時点でdangling pointerになります。
 
+`src/hello.h`:
+
 ```cpp
 // 挨拶文字列を返す公開Singleton。
+#pragma once
+
+#include <godot_cpp/classes/object.hpp>
+#include <godot_cpp/core/class_db.hpp>
+
+using namespace godot;
+
+// GDScriptから見える公開class。
 class GDHello : public Object {
 	GDCLASS(GDHello, Object)
 
@@ -154,16 +190,37 @@ public:
 };
 ```
 
+`src/hello.cpp`:
+
 ```cpp
+// GDHelloのmethod実装と登録。
+#include "hello.h"
+
+using namespace godot;
+
 // 公開methodをGDScriptから呼べるよう登録する。
 void GDHello::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("message", "name"), &GDHello::message);
 }
+
+// 名前を埋めた挨拶を返す。
+String GDHello::message(const String &p_name) const {
+	return "hello from C++, " + p_name;
+}
 ```
 
-初期化入口の名前は、あとでmanifestの`entry_symbol`へ書く名前と一致させます。
+`src/register_types.cpp`が読込み時の入口です。関数名は、あとでmanifestの`entry_symbol`へ書く名前と
+一致させます。
 
 ```cpp
+// GDHelloをGDExtensionへ登録する。
+#include "hello.h"
+
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/godot.hpp>
+
+using namespace godot;
+
 static GDHello *hello_api = nullptr; // 公開Singletonの実体
 
 // classとSingletonを登録する。
@@ -229,8 +286,11 @@ scons godot_cpp=../tmp/ref_godot_cpp platform=linux arch=x86_64 target=template_
 
 ### 2.4 manifest
 
+`hello.gdextension`が読込みの入口です。`entry_symbol`は`register_types.cpp`の関数名と、
+`[libraries]`のfile名はbuildが出した名前と一致させます。
+
 ```ini
-; GDHelloの公開class、platform library、await型を定義するmanifest。
+; GDHelloの公開classとplatform libraryを定義するmanifest。
 
 [configuration]
 ; 初期化入口と読込み可能なGodot版。
@@ -250,21 +310,23 @@ windows.release.x86_64 = "bin/libgdhello.windows.template_release.x86_64.dll"
 [classes]
 ; gdの型推論とcompileが追跡するclass。
 GDHello = ""
-
-[await]
-; 非同期methodをawaitした後の型。
-GDHelloClient.fetch = "Dictionary"
-
-[result]
-; Rを返すmethodの成功値の型。
-GDHelloClient.open = "GDHelloSession"
 ```
 
 `[classes]`、`[await]`、`[result]`はgd固有の節です。
 
-- `[classes]`は読込み前の名前衝突判定に使います。宣言した名前が既にあると読込みを拒否します
+- `[classes]`は読込み前の名前衝突判定に使います。宣言した名前が既にあると読込みごと拒否します
 - `[await]`は`await`した後の型を補います。signalの戻り値からは推論できないためです
 - `[result]`は`R`を返すmethodの成功値の型を補います
+
+`[await]`と`[result]`は`<class>.<method> = "<型>"`の形で、非同期methodや`R`を返すmethodを
+持つときだけ書きます。**存在しないclassやmethodを書くと読込みのたびにerrorが出ます。**
+
+```ini
+[await]
+; 非同期methodをawaitした後の型。
+GDMemcachedClient.get = "Dictionary"
+GDMemcachedClient.set = "Dictionary"
+```
 
 `.gdextension`は16 MiBまでです。実例は
 [memcached](extensions/memcached/memcached.gdextension)と[supabase](extensions/supabase/supabase.gdextension)にあります。

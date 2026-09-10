@@ -284,6 +284,15 @@ scons godot_cpp=../tmp/ref_godot_cpp platform=linux arch=x86_64 target=template_
 配るには対応3 OSのdebugとreleaseを揃えます。生成されるlibrary名は
 `platform`、`target`、`arch`から決まり、manifestへ書く名前と一致していなければなりません。
 
+**godot-cppのcheckoutはbuild設定ごとに分けてください。** 同じcheckoutを`build_profile`の有無で
+使い回すと、生成coderが作り直されてもlinkは成功し、読込み時に落ちるlibraryが黙って出来ます。
+健全なlibraryに`godot::`の未解決記号は無いので、疑わしいときは確かめられます。
+
+```sh
+nm -D --undefined-only bin/libgdhello.linux.template_debug.x86_64.so | grep N5godot   # macOSは nm -u
+git -C tmp/ref_godot_cpp clean -xfd  # 混ざったときはgodot-cppを掃除して作り直す
+```
+
 ### 2.4 manifest
 
 `hello.gdextension`が読込みの入口です。`entry_symbol`は`register_types.cpp`の関数名と、

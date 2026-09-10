@@ -68,6 +68,31 @@ def regular_files(root: Path, path: Path) -> list[Path]:
     return found
 
 
+# packageが自分のgd.jsonで名指す依存を、gd publishと同じ形で検査する。
+# 登録所packageだけが一緒に配れる。localやURLの依存は利用側で解決できない。
+def package_imports(config: dict) -> dict[str, str]:
+    raw = config.get("imports", {})
+    if not isinstance(raw, dict):
+        raise ValueError("imports must be an object")
+    imports: dict[str, str] = {}
+    for alias, spec in raw.items():
+        if not isinstance(alias, str) or not isinstance(spec, str) or not alias or alias.startswith("@"):
+            raise ValueError(f"imports alias must be a safe name: {alias!r}")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._~-]*", alias) or alias.endswith("."):
+            raise ValueError(f"imports alias must be a safe name: {alias!r}")
+        if not re.fullmatch(r"(gd|ext):@[A-Za-z0-9._~-]+/[A-Za-z0-9._~-]+(@[A-Za-z0-9.+^~*<>=| -]{1,100})?", spec):
+            raise ValueError(f"imports may name registry packages only: {alias} = {spec!r}")
+        imports[alias] = spec
+    return imports
+
+
+# class_nameはinstallした全projectへglobal名を登録するので、純GDScript packageでは拒む。
+def no_class_name(sources: dict[str, Path]) -> None:
+    for relative, path in sources.items():
+        if relative.endswith(".gd") and re.search(r"^\s*class_name\s", path.read_text(encoding="utf-8"), re.MULTILINE):
+            raise ValueError(f"{relative}: packages must not declare class_name; consumers preload them by alias")
+
+
 # 純GDScript packageの入口directoryから配るfile treeを集める。
 def script_files(src: Path, main: Path, includes: object) -> dict[str, Path]:
     no_links(src, main)
@@ -126,10 +151,15 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
             if not library.is_file():
                 raise ValueError(f"{name}: runtime library must be a regular file: {library}")
     sources = {entry_name: main} if native else script_files(src, main, config.get("include"))
+    if not native:
+        no_class_name(sources)
     files: dict[str, object] = {relative: mark(path) for relative, path in sources.items()}
     for library in libraries:
         files[f"bin/{library.name}"] = mark(library)
     entry = {**mark(main), "files": files}
+    imports = package_imports(config)
+    if imports:
+        entry["imports"] = imports
     meta_path = target / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {"versions": {}}
     old = meta["versions"].get(version)

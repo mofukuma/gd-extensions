@@ -107,8 +107,25 @@ def main() -> int:
         path = source / "extensions" / name / "gd.json"
         config = json.loads(path.read_text(encoding="utf-8"))
         config["version"] = "0.2.0"
+        if name == "discord":
+            # packageが自分のgd.jsonで名指す登録所packageは版metadataへ載る。
+            config["imports"] = {"hello": "gd:@mofukuma/hello@^0.2.0", "mc": "ext:@mofukuma/memcached@^0.2.0"}
         path.write_text(json.dumps(config), encoding="utf-8")
+    # localやURLの依存、class_nameを持つ純GDScript packageは配れない。
+    hello_config = source / "extensions" / "hello" / "gd.json"
+    hello_good = hello_config.read_text(encoding="utf-8")
+    hello_config.write_text(json.dumps({**json.loads(hello_good), "imports": {"x": "./x"}}), encoding="utf-8")
+    assert subprocess.run(command + ["--version", "0.2.0"], capture_output=True).returncode != 0
+    hello_config.write_text(hello_good, encoding="utf-8")
+    hello_main = source / "extensions" / "hello" / "src" / "mod.gd"
+    hello_text = hello_main.read_text(encoding="utf-8")
+    hello_main.write_text("class_name Leak\n" + hello_text, encoding="utf-8")
+    assert subprocess.run(command + ["--version", "0.2.0"], capture_output=True).returncode != 0
+    hello_main.write_text(hello_text, encoding="utf-8")
     subprocess.run(command + ["--version", "0.2.0"], check=True)
+    discord_meta = json.loads((site / "@mofukuma" / "discord" / "meta.json").read_text(encoding="utf-8"))
+    assert discord_meta["versions"]["0.2.0"]["imports"] == {"hello": "gd:@mofukuma/hello@^0.2.0", "mc": "ext:@mofukuma/memcached@^0.2.0"}
+    assert "imports" not in discord_meta["versions"]["0.1.3"]
     catalog = json.loads((site / "-" / "catalog.json").read_text(encoding="utf-8"))
     assert {item["pkg"] for item in catalog["packages"]} == {
         "@mofukuma/discord", "@mofukuma/hello", "@mofukuma/memcached", "@mofukuma/supabase"

@@ -17,6 +17,8 @@ gd add ext:@mofukuma/supabase@^0.1.3
 
 純GDScript packageは共有cacheに置いたまま`pkg://<呼び名>/`で読みます。検証したnative libraryとmanifestは`pkg/<呼び名>/`へ置きます。
 本家Godotから読むときは`gd.json`へ`"place": "project"`を書くと純GDScript packageも`pkg/<呼び名>/`へ置かれ、`res://pkg/<呼び名>/mod.gd`で読めます。
+packageが自分の`gd.json`の`imports`で使う他のpackageも一緒に解決され、`gd.lock`に版ごと固定されます。
+他のpackageだけが使うものは`pkg/@scope/name@版/`に置かれます。
 
 | package | 入口 | 用途 |
 |---|---|---|

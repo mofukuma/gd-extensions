@@ -69,9 +69,10 @@ static func decorate(text):
 	return "** %s **" % text
 ```
 
-- `class_name`を使いません。呼び名は利用側が決めて`preload`します
+- `class_name`を使いません。呼び名は利用側が決めて`preload`します。`.gd`に`class_name`があると`gd publish`が拒みます
 - package内のfileは**相対path**で`preload`します。treeは利用側で`pkg://<呼び名>/`からそのまま読まれるので、
   呼び名が何であっても解決できます。`pkg://greet/style.gd`と書くと呼び名を固定してしまいます
+- 他のpackageが要るなら、自分の`gd.json`の`imports`へ書いて`pkg://<自分が付けた呼び名>/`で読みます（[1.4](#14-他のpackageを使う)）
 - 型注釈を書かない公開moduleでは、動的な戻り値へ`:=`を使いません（`var x = value`）。
   理由は[調査メモ](ログ/調査メモ_GDScript型推論の件.md)にあります
 
@@ -153,6 +154,41 @@ packageは利用者ごとの共有cacheに置かれ、projectへは複製され�
 
 版は不変です。同じ版を上書きできないので、直したら`version`を上げてから`gd publish`します。
 利用側は`gd update <呼び名> --latest`で範囲ごと上げられます。
+
+### 1.4 他のpackageを使う
+
+packageも自分の`gd.json`の`imports`で登録所packageを使えます。localやURLの依存は利用側で解決できないので、
+`gd publish`が拒みます。
+
+```json
+{
+  "name": "@luca/wrap",
+  "version": "0.1.0",
+  "description": "greetを包む",
+  "registry": "http://127.0.0.1:8787",
+  "imports": {"greet": "gd:@luca/greet@^0.1.0"}
+}
+```
+
+```gdscript
+# package内から、自分のgd.jsonの呼び名で依存を読む。
+const Greet = preload("pkg://greet/mod.gd")
+
+
+static func twice(who):
+	return Greet.message(who) + " " + Greet.message(who)
+```
+
+`pkg://greet/`は**このpackageの**`imports`で解決されます。利用側projectが同じ呼び名`greet`で別の版を使っていても混ざりません。
+登録所packageの正式なpathは`pkg://@luca/greet@0.1.0/`で、同じ版はどこから辿っても一つのscriptです。
+
+利用側の`gd install`はDenoと同じ規則で版を選びます。`gd.lock`が固定した版、次にその解決で選び済みの版のうち
+範囲を満たすもの、それも無ければ登録所の最新一致です。純GDScript packageは版ごとに共存できます。
+`ext:`のnative拡張はprocessに一つしか読めないので、範囲が両立しない版は`gd install`が取得前に止めます。
+拡張のclassを名指せるのは、それを`ext:`で`imports`に書いたpackage（またはproject）のscriptだけです。
+
+`"place": "project"`とnative拡張の置き場は、projectが名指すpackageが`pkg/<呼び名>/`、
+他のpackageだけが使うものが`pkg/@scope/name@版/`です。`gd remove`と`gd update`が使われなくなったものを外します。
 
 ## 2. GDExtension package
 
@@ -363,7 +399,8 @@ GDMemcachedClient.set = "Dictionary"
 GD_TOKEN=<token> gd --allow-net=<登録所> --allow-env=GD_TOKEN publish
 ```
 
-利用側は呼び名を付けません。manifestが宣言するclass名をそのまま使います。
+利用側は呼び名を付けません。manifestが宣言するclass名をそのまま使います。class名は登録所が予約するので、
+別のpackageと重なる名前はpublishできません。他のpackageからは、その`gd.json`の`imports`へ`ext:`で書いたときだけ名指せます。
 
 ```sh
 gd add ext:@luca/hello-native@^0.1.0

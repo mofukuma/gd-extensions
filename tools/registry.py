@@ -179,6 +179,7 @@ def package(source: Path, artifacts: Path, site: Path, name: str, version: str) 
         for library in libraries:
             shutil.copy2(library, bin_dir / library.name)
     meta["description"] = config["description"]
+    meta["godot"] = config.get("godot", False) is True
     meta["versions"][version] = entry
     meta["latest"] = max(meta["versions"], key=lambda item: tuple(map(int, item.split("."))))
     write_json(meta_path, meta)
@@ -202,7 +203,8 @@ def index(source: Path, site: Path) -> None:
             spec = f"{name} gd:@mofukuma/{name}@^{version}"
         rows.append(f'<li><code>gd add {spec}</code> — {meta["description"]}</li>')
         kind = "gd" if str(config.get("main", "mod.gd")).endswith(".gd") else "ext"
-        results.append({"pkg": f"@mofukuma/{name}", "latest": meta["latest"], "description": meta["description"], "kind": kind})
+        results.append({"pkg": f"@mofukuma/{name}", "latest": meta["latest"], "description": meta["description"], "kind": kind,
+                        "godot": meta.get("godot", False)})
     body = f"""<!doctype html>
 <html lang="ja"><meta charset="utf-8"><title>gd extensions</title>
 <h1>gd extensions</h1><ul>{"".join(rows)}</ul>
